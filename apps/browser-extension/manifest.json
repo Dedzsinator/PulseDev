@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "PulseDev Context Tracker",
+  "version": "1.0.0",
+  "description": "Browser context tracking for PulseDev development workflow",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage",
+    "background",
+    "scripting",
+    "idle",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://localhost:6379/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "dist/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["dist/content.js"],
+      "css": ["assets/styles/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_title": "PulseDev Context Tracker"
+  },
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/styles/content.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
