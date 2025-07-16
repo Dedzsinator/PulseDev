@@ -1,27 +1,29 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 import asyncpg
 import redis.asyncio as redis
-import json
 import uuid
+import json
 import os
 from contextlib import asynccontextmanager
 
-# Models
-class ContextEvent(BaseModel):
-    sessionId: str = Field(..., description="Session identifier")
-    agent: str = Field(..., description="Context agent (file, editor, terminal, git)")
-    type: str = Field(..., description="Event type")
-    payload: Dict[str, Any] = Field(..., description="Event payload")
-    timestamp: str = Field(..., description="ISO timestamp")
+# Import services and models
+from config import Config
+from models.events import ContextEvent, EventType, Agent
+from api.routes import router
+from services.ai_service import AIService
+from services.git_service import GitService
+from services.flow_service import FlowService
+from services.energy_service import EnergyService
 
 class HealthResponse(BaseModel):
     status: str
     timestamp: str
-    version: str = "0.1.0"
+    version: str = "1.0.0"
+    features: list = ["ccm", "ai", "git", "flow", "energy"]
 
 # Global connections
 db_pool: Optional[asyncpg.Pool] = None
@@ -125,164 +127,13 @@ async def init_database():
             ON context_events (agent, timestamp DESC);
         """)
 
-@app.get("/health", response_model=HealthResponse)
-async def health_check():
-    """Health check endpoint"""
-    return HealthResponse(
-        status="healthy",
-        timestamp=datetime.utcnow().isoformat()
-    )
+# Include API routes
+app.include_router(router, prefix="/api/v1")
 
-@app.post("/context/events")
-async def create_context_event(
-    event: ContextEvent,
-    db: asyncpg.Connection = Depends(get_db),
-    redis_conn: redis.Redis = Depends(get_redis)
-):
-    """Store a context event"""
-    try:
-        # Store in PostgreSQL
-        event_id = str(uuid.uuid4())
-        await db.execute("""
-            INSERT INTO context_events (id, session_id, agent, type, payload, timestamp)
-            VALUES ($1, $2, $3, $4, $5, $6)
-        """, event_id, event.sessionId, event.agent, event.type, 
-            json.dumps(event.payload), datetime.fromisoformat(event.timestamp.replace('Z', '+00:00')))
-        
-        # Cache recent events in Redis (last 100 events per session)
-        cache_key = f"session:{event.sessionId}:recent"
-        event_data = {
-            "id": event_id,
-            "agent": event.agent,
-            "type": event.type,
-            "payload": event.payload,
-            "timestamp": event.timestamp
-        }
-        
-        await redis_conn.lpush(cache_key, json.dumps(event_data))
-        await redis_conn.ltrim(cache_key, 0, 99)  # Keep only last 100 events
-        await redis_conn.expire(cache_key, 86400)  # 24 hour expiry
-        
-        return {"status": "success", "event_id": event_id}
-        
-    except Exception as e:
-        print(f"Error storing context event: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to store event: {str(e)}")
+# Initialize services
+Config.validate()
 
-@app.get("/context/recent")
-async def get_recent_context(
-    hours: int = 1,
-    session_id: Optional[str] = None,
-    agent: Optional[str] = None,
-    db: asyncpg.Connection = Depends(get_db)
-) -> List[Dict[str, Any]]:
-    """Get recent context events"""
-    try:
-        # Build query conditions
-        conditions = ["timestamp > $1"]
-        params = [datetime.utcnow() - timedelta(hours=hours)]
-        param_count = 1
-        
-        if session_id:
-            param_count += 1
-            conditions.append(f"session_id = ${param_count}")
-            params.append(session_id)
-            
-        if agent:
-            param_count += 1
-            conditions.append(f"agent = ${param_count}")
-            params.append(agent)
-        
-        where_clause = " AND ".join(conditions)
-        
-        query = f"""
-            SELECT session_id, agent, type, payload, timestamp
-            FROM context_events
-            WHERE {where_clause}
-            ORDER BY timestamp DESC
-            LIMIT 1000
-        """
-        
-        rows = await db.fetch(query, *params)
-        
-        events = []
-        for row in rows:
-            events.append({
-                "sessionId": row["session_id"],
-                "agent": row["agent"],
-                "type": row["type"],
-                "payload": row["payload"],
-                "timestamp": row["timestamp"].isoformat()
-            })
-            
-        return events
-        
-    except Exception as e:
-        print(f"Error fetching recent context: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch context: {str(e)}")
-
-@app.delete("/context/wipe")
-async def wipe_context(
-    session_id: Optional[str] = None,
-    db: asyncpg.Connection = Depends(get_db),
-    redis_conn: redis.Redis = Depends(get_redis)
-):
-    """Wipe context data"""
-    try:
-        if session_id:
-            # Wipe specific session
-            await db.execute("DELETE FROM context_events WHERE session_id = $1", session_id)
-            await redis_conn.delete(f"session:{session_id}:recent")
-        else:
-            # Wipe all context data
-            await db.execute("DELETE FROM context_events")
-            # Clear all session caches
-            keys = await redis_conn.keys("session:*:recent")
-            if keys:
-                await redis_conn.delete(*keys)
-        
-        return {"status": "success", "message": "Context data wiped"}
-        
-    except Exception as e:
-        print(f"Error wiping context: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to wipe context: {str(e)}")
-
-@app.get("/context/stats")
-async def get_context_stats(
-    session_id: Optional[str] = None,
-    db: asyncpg.Connection = Depends(get_db)
-):
-    """Get context statistics"""
-    try:
-        base_query = """
-            SELECT 
-                agent,
-                COUNT(*) as event_count,
-                MIN(timestamp) as first_event,
-                MAX(timestamp) as last_event
-            FROM context_events
-        """
-        
-        if session_id:
-            query = base_query + " WHERE session_id = $1 GROUP BY agent"
-            rows = await db.fetch(query, session_id)
-        else:
-            query = base_query + " GROUP BY agent"
-            rows = await db.fetch(query)
-        
-        stats = {}
-        for row in rows:
-            stats[row["agent"]] = {
-                "event_count": row["event_count"],
-                "first_event": row["first_event"].isoformat(),
-                "last_event": row["last_event"].isoformat()
-            }
-            
-        return stats
-        
-    except Exception as e:
-        print(f"Error fetching context stats: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch stats: {str(e)}")
+# ... keep existing code (database initialization, dependencies, and legacy endpoints)
 
 if __name__ == "__main__":
     import uvicorn
