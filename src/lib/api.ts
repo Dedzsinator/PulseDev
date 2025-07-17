@@ -10,10 +10,13 @@ const api = axios.create({
 });
 
 export interface ContextEvent {
-  session_id: string;
+  sessionId: string;
   agent: string;
   type: string;
   payload: Record<string, any>;
+  timestamp?: string;
+  file_path?: string;
+  line_number?: number;
 }
 
 export interface AIPromptRequest {

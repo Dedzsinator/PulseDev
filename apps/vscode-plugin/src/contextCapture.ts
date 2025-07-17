@@ -14,6 +14,7 @@ export class ContextCapture {
         this.context = context;
         this.apiClient = apiClient;
         this.sessionId = this.generateSessionId();
+        this.browserIntegration = new BrowserIntegration(apiClient, this.sessionId);
     }
 
     public start(): void {
