@@ -93,7 +93,7 @@ export default function CCMDashboard() {
   const createTestEvent = async () => {
     try {
       await contextAPI.createEvent({
-        session_id: sessionId,
+      sessionId: sessionId,
         agent: 'vscode',
         type: 'file_edit',
         payload: {

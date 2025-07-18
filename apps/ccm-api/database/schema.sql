@@ -206,3 +206,147 @@ CREATE TRIGGER update_code_relationships_updated_at
 CREATE TRIGGER update_user_preferences_updated_at 
     BEFORE UPDATE ON user_preferences 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Gamification Tables
+CREATE TABLE user_profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    session_id VARCHAR(255) UNIQUE NOT NULL,
+    total_xp INTEGER DEFAULT 0,
+    level INTEGER DEFAULT 1,
+    current_streak INTEGER DEFAULT 0,
+    longest_streak INTEGER DEFAULT 0,
+    total_commits INTEGER DEFAULT 0,
+    total_flow_time INTEGER DEFAULT 0, -- in minutes
+    total_coding_minutes INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE achievements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    icon VARCHAR(100),
+    category VARCHAR(50), -- flow, commits, streaks, coding, debugging
+    xp_reward INTEGER DEFAULT 0,
+    unlock_criteria JSONB, -- flexible criteria storage
+    tier VARCHAR(20) DEFAULT 'bronze', -- bronze, silver, gold, platinum
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE user_achievements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES user_profiles(id),
+    achievement_id UUID REFERENCES achievements(id),
+    unlocked_at TIMESTAMPTZ DEFAULT NOW(),
+    session_id VARCHAR(255),
+    metadata JSONB DEFAULT '{}',
+    UNIQUE(user_id, achievement_id)
+);
+
+CREATE TABLE xp_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES user_profiles(id),
+    session_id VARCHAR(255),
+    amount INTEGER NOT NULL,
+    source VARCHAR(100), -- flow_state, commit, debugging, test_pass, etc.
+    description TEXT,
+    metadata JSONB DEFAULT '{}',
+    timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE daily_streaks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES user_profiles(id),
+    date DATE NOT NULL,
+    coding_minutes INTEGER DEFAULT 0,
+    commits INTEGER DEFAULT 0,
+    flow_sessions INTEGER DEFAULT 0,
+    xp_earned INTEGER DEFAULT 0,
+    files_edited INTEGER DEFAULT 0,
+    tests_passed INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, date)
+);
+
+CREATE TABLE active_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES user_profiles(id),
+    session_id VARCHAR(255) UNIQUE NOT NULL,
+    platform VARCHAR(50), -- vscode, browser, nvim
+    is_active BOOLEAN DEFAULT true,
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    last_activity TIMESTAMPTZ DEFAULT NOW(),
+    sync_token VARCHAR(255) -- for cross-platform sync
+);
+
+CREATE TABLE leaderboards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES user_profiles(id),
+    category VARCHAR(50), -- xp, streaks, commits, flow_time
+    value INTEGER NOT NULL,
+    period VARCHAR(20), -- daily, weekly, monthly, all_time
+    date DATE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Gamification indexes
+CREATE INDEX idx_user_profiles_session_id ON user_profiles(session_id);
+CREATE INDEX idx_user_achievements_user_id ON user_achievements(user_id);
+CREATE INDEX idx_xp_transactions_user_session ON xp_transactions(user_id, session_id);
+CREATE INDEX idx_xp_transactions_timestamp ON xp_transactions(timestamp DESC);
+CREATE INDEX idx_daily_streaks_user_date ON daily_streaks(user_id, date DESC);
+CREATE INDEX idx_active_sessions_user_platform ON active_sessions(user_id, platform, is_active);
+CREATE INDEX idx_leaderboards_category_period ON leaderboards(category, period, date DESC);
+
+-- Convert XP transactions to hypertable
+SELECT create_hypertable('xp_transactions', 'timestamp', chunk_time_interval => INTERVAL '1 day');
+
+-- Insert default achievements
+INSERT INTO achievements (name, description, icon, category, xp_reward, unlock_criteria, tier) VALUES
+-- Coding achievements
+('First Steps', 'Write your first line of code', '🎯', 'coding', 10, '{"event_count": 1, "event_type": "file_edit"}', 'bronze'),
+('Code Rookie', 'Edit 10 files', '📝', 'coding', 25, '{"files_edited": 10}', 'bronze'),
+('Code Warrior', 'Edit 100 files', '⚔️', 'coding', 100, '{"files_edited": 100}', 'silver'),
+('Code Master', 'Edit 1000 files', '👑', 'coding', 500, '{"files_edited": 1000}', 'gold'),
+
+-- Flow achievements
+('Flow Starter', 'Achieve 15 minutes of continuous flow', '🌊', 'flow', 25, '{"flow_duration": 15}', 'bronze'),
+('Flow Master', 'Achieve 60 minutes of continuous flow', '🌀', 'flow', 75, '{"flow_duration": 60}', 'silver'),
+('Flow Legend', 'Achieve 2 hours of flow in one session', '🧘', 'flow', 200, '{"single_flow_duration": 120}', 'gold'),
+('Flow God', 'Achieve 4 hours of flow in one day', '✨', 'flow', 500, '{"daily_flow_time": 240}', 'platinum'),
+
+-- Commit achievements
+('First Commit', 'Make your first commit', '📦', 'commits', 20, '{"commits": 1}', 'bronze'),
+('Commit Streak', 'Make commits for 5 consecutive days', '🔥', 'commits', 75, '{"commit_streak": 5}', 'silver'),
+('Commit Champion', 'Make 100 total commits', '🏆', 'commits', 200, '{"total_commits": 100}', 'gold'),
+('Speed Demon', 'Complete 10 commits in one day', '⚡', 'commits', 150, '{"daily_commits": 10}', 'silver'),
+
+-- Streak achievements
+('Streak Starter', 'Code for 3 consecutive days', '🔥', 'streaks', 50, '{"streak_days": 3}', 'bronze'),
+('Week Warrior', 'Code every day for a week', '🗓️', 'streaks', 150, '{"streak_days": 7}', 'silver'),
+('Month Master', 'Code every day for a month', '📅', 'streaks', 500, '{"streak_days": 30}', 'gold'),
+('Year Legend', 'Code every day for 365 days', '🌟', 'streaks', 2000, '{"streak_days": 365}', 'platinum'),
+
+-- Debugging achievements
+('Bug Hunter', 'Resolve your first error', '🐛', 'debugging', 15, '{"errors_resolved": 1}', 'bronze'),
+('Debug Ninja', 'Successfully resolve 10 errors', '🥷', 'debugging', 75, '{"errors_resolved": 10}', 'silver'),
+('Error Eliminator', 'Resolve 100 errors', '💀', 'debugging', 250, '{"errors_resolved": 100}', 'gold'),
+
+-- Testing achievements
+('Test Rookie', 'Pass your first test', '✅', 'testing', 15, '{"tests_passed": 1}', 'bronze'),
+('Test Master', 'Achieve 90% test pass rate', '🎯', 'testing', 100, '{"test_pass_rate": 0.9}', 'silver'),
+('Test Perfectionist', 'Achieve 100% test pass rate', '💯', 'testing', 200, '{"test_pass_rate": 1.0}', 'gold'),
+
+-- Special achievements
+('Night Owl', 'Code after midnight', '🦉', 'special', 25, '{"late_night_coding": true}', 'bronze'),
+('Early Bird', 'Code before 6 AM', '🐦', 'special', 25, '{"early_morning_coding": true}', 'bronze'),
+('Weekend Warrior', 'Code on weekends', '⚡', 'special', 50, '{"weekend_coding": true}', 'silver'),
+('Productivity Beast', 'Earn 1000 XP in one day', '🔥', 'special', 300, '{"daily_xp": 1000}', 'gold');
+
+-- Gamification triggers
+CREATE TRIGGER update_user_profiles_updated_at 
+    BEFORE UPDATE ON user_profiles 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

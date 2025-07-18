@@ -40,7 +40,7 @@ export default function ContextEventForm({ sessionId }: ContextEventFormProps) {
     try {
       const parsedPayload = JSON.parse(payload);
       createEventMutation.mutate({
-        session_id: sessionId,
+        sessionId: sessionId,
         agent,
         type,
         payload: parsedPayload,
