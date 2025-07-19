@@ -6,7 +6,24 @@ metadata:
 data:
   POSTGRES_DB: pulsedev_ccm
   POSTGRES_USER: postgres
-  POSTGRES_PASSWORD: password
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: pulsedev-ccm
+data:
+  01-schema.sql: |
+    -- Create TimescaleDB extension
+    CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+    
+    -- Enable necessary extensions
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    
+    -- Initialize schema
+    \i /docker-entrypoint-initdb.d/schema.sql
 
 ---
 apiVersion: v1
@@ -42,23 +59,34 @@ spec:
         image: timescale/timescaledb:latest-pg15
         ports:
         - containerPort: 5432
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: pulsedev-secrets
+              key: postgres-password
         envFrom:
         - configMapRef:
             name: postgres-config
         volumeMounts:
         - name: postgres-storage
           mountPath: /var/lib/postgresql/data
+        - name: postgres-init-scripts
+          mountPath: /docker-entrypoint-initdb.d/
         resources:
           requests:
             memory: "512Mi"
             cpu: "250m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "2Gi"
+            cpu: "1000m"
       volumes:
       - name: postgres-storage
         persistentVolumeClaim:
           claimName: postgres-pvc
+      - name: postgres-init-scripts
+        configMap:
+          name: postgres-init-scripts
 
 ---
 apiVersion: v1

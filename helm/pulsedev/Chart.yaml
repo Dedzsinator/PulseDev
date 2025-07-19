@@ -1,0 +1,26 @@
+apiVersion: v2
+name: pulsedev
+description: PulseDev+ Cognitive Context Mirror Helm Chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - developer-productivity
+  - gamification
+  - context-capture
+  - ai-assistant
+home: https://pulsedev.dev
+sources:
+  - https://github.com/yourusername/pulsedev-plus
+maintainers:
+  - name: PulseDev Team
+    email: team@pulsedev.dev
+dependencies:
+  - name: postgresql
+    version: 12.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: 17.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
