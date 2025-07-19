@@ -72,7 +72,7 @@ export const GamificationDashboard: React.FC<{ sessionId: string }> = ({ session
   useEffect(() => {
     const loadDashboard = async () => {
       try {
-        const response = await ccmAPI.get(`/gamification/dashboard/${sessionId}`);
+        const response = await ccmAPI.getGamificationDashboard(sessionId);
         if (response.data.success) {
           setData(response.data.dashboard);
         }

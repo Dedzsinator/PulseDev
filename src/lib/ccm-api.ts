@@ -112,6 +112,25 @@ export const ccmAPI = {
   // Energy Analysis
   getComprehensiveEnergy: (sessionId: string, timeRange: string = 'hour') => 
     api.get(`/ccm/energy/comprehensive/${sessionId}?time_range=${timeRange}`),
+  
+  // Gamification
+  getGamificationDashboard: (sessionId: string) => 
+    api.get(`/gamification/dashboard/${sessionId}`),
+  
+  awardXP: (sessionId: string, source: string, amount: number, metadata?: Record<string, any>) => 
+    api.post(`/gamification/xp/${sessionId}`, { source, amount, metadata }),
+  
+  updateStreak: (sessionId: string) => 
+    api.post(`/gamification/streak/${sessionId}`),
+  
+  getUserProfile: (sessionId: string) => 
+    api.get(`/gamification/profile/${sessionId}`),
+  
+  getAchievements: (sessionId: string) => 
+    api.get(`/gamification/achievements/${sessionId}`),
+  
+  getLeaderboard: (metric: string = 'xp', timeframe: string = 'weekly') => 
+    api.get(`/gamification/leaderboard?metric=${metric}&timeframe=${timeframe}`),
 };
 
 export default api;
