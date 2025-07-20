@@ -38,3 +38,19 @@ class Config:
         if not cls.ENCRYPTION_KEY:
             print("Warning: ENCRYPTION_KEY not set, using development key")
             cls.ENCRYPTION_KEY = b"dev-key-32-bytes-long-for-testing"
+
+# Dependency functions for API routes
+async def get_db_connection():
+    """Get database connection from main app"""
+    from main import db_pool
+    if not db_pool:
+        raise HTTPException(status_code=500, detail="Database not initialized")
+    async with db_pool.acquire() as connection:
+        yield connection
+
+async def get_redis_connection():
+    """Get Redis connection from main app"""
+    from main import redis_client
+    if not redis_client:
+        raise HTTPException(status_code=500, detail="Redis not initialized")
+    return redis_client

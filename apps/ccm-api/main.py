@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from config import Config
 from models.events import ContextEvent, EventType, Agent
 from api.routes import router
+from api.gamification_routes import router as gamification_router
 from services.ai_service import AIService
 from services.git_service import GitService
 from services.flow_service import FlowService
@@ -129,6 +130,7 @@ async def init_database():
 
 # Include API routes
 app.include_router(router, prefix="/api/v1")
+app.include_router(gamification_router)
 
 # Initialize services
 Config.validate()

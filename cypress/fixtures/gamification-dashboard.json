@@ -1,0 +1,52 @@
+{
+  "success": true,
+  "dashboard": {
+    "user_stats": {
+      "id": "test-user-123",
+      "username": "cypressuser",
+      "total_xp": 2500,
+      "level": 8,
+      "current_streak": 12,
+      "longest_streak": 25,
+      "total_commits": 156,
+      "total_flow_time": 1800
+    },
+    "achievements": [
+      {
+        "id": "first-commit",
+        "name": "First Commit",
+        "description": "Made your first commit",
+        "icon": "trophy",
+        "unlocked_at": "2024-01-15T10:30:00Z"
+      },
+      {
+        "id": "flow-master",
+        "name": "Flow Master",
+        "description": "Maintained flow state for 2+ hours",
+        "icon": "zap",
+        "unlocked_at": "2024-01-20T14:45:00Z"
+      },
+      {
+        "id": "commit-streak",
+        "name": "Commit Streak",
+        "description": "10 days of consecutive commits",
+        "icon": "flame",
+        "unlocked_at": "2024-01-25T09:15:00Z"
+      }
+    ],
+    "leaderboards": {
+      "xp": [
+        { "username": "topdev", "total_xp": 5000, "level": 15 },
+        { "username": "coder_pro", "total_xp": 3200, "level": 10 },
+        { "username": "cypressuser", "total_xp": 2500, "level": 8 },
+        { "username": "junior_dev", "total_xp": 1200, "level": 5 }
+      ],
+      "streaks": [
+        { "username": "streak_king", "current_streak": 30 },
+        { "username": "consistent_dev", "current_streak": 18 },
+        { "username": "cypressuser", "current_streak": 12 },
+        { "username": "weekend_warrior", "current_streak": 8 }
+      ]
+    }
+  }
+}
