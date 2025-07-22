@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { 
-  submitContextEvent, 
-  getGamificationDashboard,
-  awardXP,
-  getLeaderboard 
-} from '../ccm-api'
+import { ccmAPI } from '../ccm-api'
 import { api } from '../api'
 
 vi.mock('../api')
@@ -28,7 +23,7 @@ describe('CCM API Functions', () => {
       const mockResponse = { data: { status: 'success', event_id: '123' } }
       mockedApi.post.mockResolvedValue(mockResponse)
 
-      const result = await submitContextEvent(mockEvent)
+      const result = await ccmAPI.submitContextEvent(mockEvent)
 
       expect(mockedApi.post).toHaveBeenCalledWith('/api/v1/context/events', mockEvent)
       expect(result).toEqual(mockResponse.data)
@@ -45,7 +40,7 @@ describe('CCM API Functions', () => {
 
       mockedApi.post.mockRejectedValue(new Error('API Error'))
 
-      await expect(submitContextEvent(mockEvent)).rejects.toThrow('API Error')
+      await expect(ccmAPI.submitContextEvent(mockEvent)).rejects.toThrow('API Error')
     })
   })
 
@@ -65,7 +60,7 @@ describe('CCM API Functions', () => {
 
       mockedApi.get.mockResolvedValue(mockResponse)
 
-      const result = await getGamificationDashboard(sessionId)
+      const result = await ccmAPI.getGamificationDashboard(sessionId)
 
       expect(mockedApi.get).toHaveBeenCalledWith(`/api/v1/gamification/dashboard/${sessionId}`)
       expect(result).toEqual(mockResponse.data)
@@ -87,7 +82,7 @@ describe('CCM API Functions', () => {
 
       mockedApi.post.mockResolvedValue(mockResponse)
 
-      const result = await awardXP(request)
+      const result = await ccmAPI.awardXP(request)
 
       expect(mockedApi.post).toHaveBeenCalledWith('/api/v1/gamification/xp/award', request)
       expect(result).toEqual(mockResponse.data)
@@ -108,7 +103,7 @@ describe('CCM API Functions', () => {
 
       mockedApi.get.mockResolvedValue(mockResponse)
 
-      const result = await getLeaderboard('xp', 'weekly')
+      const result = await ccmAPI.getLeaderboard('xp', 'weekly')
 
       expect(mockedApi.get).toHaveBeenCalledWith('/api/v1/gamification/leaderboard?category=xp&period=weekly')
       expect(result).toEqual(mockResponse.data)
