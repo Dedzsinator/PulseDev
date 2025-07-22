@@ -9,6 +9,8 @@ import { ccmAPI, CCMContextEvent, FlowState, PairProgrammingResponse } from '@/l
 import { Brain, GitBranch, Zap, Bot, Code, MessageSquare, Activity, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { notify } from '@/utils/notifications';
+import { pickFile, readFile, writeFile, getDndStatus, setDndStatus } from '@/utils/tauri-native';
+import { Tooltip } from '@/components/ui/tooltip';
 
 const getOrCreateSessionId = () => {
   let sessionId = localStorage.getItem('ccm_session_id');
@@ -31,6 +33,8 @@ export default function CCMFeatures() {
   const [intentDrift, setIntentDrift] = useState<any | null>(null);
   const [branchSuggestion, setBranchSuggestion] = useState<string | null>(null);
   const { toast } = useToast();
+  const [nativeLoading, setNativeLoading] = useState<string | null>(null);
+  const [nativeError, setNativeError] = useState<string | null>(null);
 
   // Real-time flow state monitoring
   useEffect(() => {
@@ -201,6 +205,10 @@ export default function CCMFeatures() {
             <TabsTrigger value="branch-suggest">
               <GitBranch className="w-4 h-4 mr-2" />
               Branch Suggest
+            </TabsTrigger>
+            <TabsTrigger value="native-utils">
+              <Shield className="w-4 h-4 mr-2" />
+              Native Utilities
             </TabsTrigger>
           </TabsList>
 
@@ -774,6 +782,165 @@ export default function CCMFeatures() {
                     Suggested Branch: <b>{branchSuggestion}</b>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Native Utilities */}
+          <TabsContent value="native-utils">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Native Utilities
+                </CardTitle>
+                <CardDescription>
+                  Access advanced native features: file picker, read/write, DND mode.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {nativeError && (
+                  <div className="text-red-500 text-sm mb-2">{nativeError}</div>
+                )}
+                <Tooltip content="Open a file picker dialog and select a file.">
+                  <span>
+                    <Button
+                      onClick={async () => {
+                        setNativeLoading('pick'); setNativeError(null);
+                        try {
+                          const file = await pickFile();
+                          notify('File Picker', file ? `Picked: ${file}` : 'No file selected.');
+                        } catch (e) {
+                          setNativeError('Failed to pick file.');
+                        } finally {
+                          setNativeLoading(null);
+                        }
+                      }}
+                      className="w-full"
+                      disabled={!!nativeLoading}
+                    >
+                      {nativeLoading === 'pick' ? 'Picking...' : 'Pick File'}
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip content="Pick a file and display its contents (first 100 chars).">
+                  <span>
+                    <Button
+                      onClick={async () => {
+                        setNativeLoading('read'); setNativeError(null);
+                        try {
+                          const file = await pickFile();
+                          if (file) {
+                            const contents = await readFile(file);
+                            notify('Read File', contents.slice(0, 100) + (contents.length > 100 ? '...' : ''));
+                          } else {
+                            notify('Read File', 'No file selected.');
+                          }
+                        } catch (e) {
+                          setNativeError('Failed to read file.');
+                        } finally {
+                          setNativeLoading(null);
+                        }
+                      }}
+                      className="w-full"
+                      disabled={!!nativeLoading}
+                    >
+                      {nativeLoading === 'read' ? 'Reading...' : 'Pick and Read File'}
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip content="Pick a file and write a test string to it.">
+                  <span>
+                    <Button
+                      onClick={async () => {
+                        setNativeLoading('write'); setNativeError(null);
+                        try {
+                          const file = await pickFile();
+                          if (file) {
+                            await writeFile(file, 'PulseDev+ was here!');
+                            notify('Write File', 'Wrote to file successfully.');
+                          } else {
+                            notify('Write File', 'No file selected.');
+                          }
+                        } catch (e) {
+                          setNativeError('Failed to write file.');
+                        } finally {
+                          setNativeLoading(null);
+                        }
+                      }}
+                      className="w-full"
+                      disabled={!!nativeLoading}
+                    >
+                      {nativeLoading === 'write' ? 'Writing...' : 'Pick and Write File'}
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip content="Check if Do Not Disturb (DND) mode is enabled (mocked).">
+                  <span>
+                    <Button
+                      onClick={async () => {
+                        setNativeLoading('dnd-status'); setNativeError(null);
+                        try {
+                          const status = await getDndStatus();
+                          notify('DND Status', status ? 'DND is ON' : 'DND is OFF');
+                        } catch (e) {
+                          setNativeError('Failed to get DND status.');
+                        } finally {
+                          setNativeLoading(null);
+                        }
+                      }}
+                      className="w-full"
+                      disabled={!!nativeLoading}
+                    >
+                      {nativeLoading === 'dnd-status' ? 'Checking...' : 'Get DND Status'}
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip content="Enable Do Not Disturb mode (mocked, not real).">
+                  <span>
+                    <Button
+                      onClick={async () => {
+                        setNativeLoading('dnd-on'); setNativeError(null);
+                        try {
+                          const enabled = await setDndStatus(true);
+                          notify('Set DND', enabled ? 'DND enabled (mock)' : 'Failed to enable DND');
+                        } catch (e) {
+                          setNativeError('Failed to enable DND.');
+                        } finally {
+                          setNativeLoading(null);
+                        }
+                      }}
+                      className="w-full"
+                      disabled={!!nativeLoading}
+                    >
+                      {nativeLoading === 'dnd-on' ? 'Enabling...' : 'Enable DND (Mock)'}
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip content="Disable Do Not Disturb mode (mocked, not real).">
+                  <span>
+                    <Button
+                      onClick={async () => {
+                        setNativeLoading('dnd-off'); setNativeError(null);
+                        try {
+                          const enabled = await setDndStatus(false);
+                          notify('Set DND', !enabled ? 'DND disabled (mock)' : 'Failed to disable DND');
+                        } catch (e) {
+                          setNativeError('Failed to disable DND.');
+                        } finally {
+                          setNativeLoading(null);
+                        }
+                      }}
+                      className="w-full"
+                      disabled={!!nativeLoading}
+                    >
+                      {nativeLoading === 'dnd-off' ? 'Disabling...' : 'Disable DND (Mock)'}
+                    </Button>
+                  </span>
+                </Tooltip>
+                <div className="text-xs text-muted-foreground mt-2">
+                  All native features are local and secure. DND is a mock for demo purposes.
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
