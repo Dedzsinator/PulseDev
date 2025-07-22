@@ -3,17 +3,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Trophy, 
-  Zap, 
-  Flame, 
-  Star, 
-  TrendingUp, 
+import {
+  Trophy,
+  Zap,
+  Flame,
+  Star,
+  TrendingUp,
   Clock,
   Target,
   Award
 } from 'lucide-react';
 import { ccmAPI } from '@/lib/ccm-api';
+import { notify } from '@/utils/notifications';
 
 interface UserProfile {
   id: string;
@@ -110,6 +111,12 @@ export const GamificationDashboard: React.FC<{ sessionId: string }> = ({ session
 
   return (
     <div className="space-y-6">
+      <button
+        className="mb-4 px-4 py-2 bg-primary text-white rounded"
+        onClick={() => notify('PulseDev+ Gamification', 'This is a native notification test!')}
+      >
+        Test Native Notification
+      </button>
       {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>

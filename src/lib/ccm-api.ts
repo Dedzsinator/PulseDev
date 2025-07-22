@@ -131,6 +131,18 @@ export const ccmAPI = {
   
   getLeaderboard: (metric: string = 'xp', timeframe: string = 'weekly') => 
     api.get(`/gamification/leaderboard?metric=${metric}&timeframe=${timeframe}`),
+
+  // Merge Conflict Resolver
+  detectMergeConflicts: (repoPath: string) =>
+    api.post('/git/detect-merge-conflicts', { repo_path: repoPath }),
+
+  // Intent Drift Detector
+  detectIntentDrift: (sessionId: string, originalIntent: string) =>
+    api.post('/git/intent-drift', { session_id: sessionId, original_intent: originalIntent }),
+
+  // Auto Branch Suggestion
+  suggestBranch: (sessionId: string) =>
+    api.post('/git/suggest-branch', { session_id: sessionId }),
 };
 
 export default api;

@@ -10,8 +10,17 @@ import { contextAPI, aiAPI, gitAPI, flowAPI, energyAPI } from '@/lib/api';
 import { Brain, GitBranch, Zap, Activity, Plus, Play, Square } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+const getOrCreateSessionId = () => {
+  let sessionId = localStorage.getItem('ccm_session_id');
+  if (!sessionId) {
+    sessionId = 'ccm_session_' + Date.now();
+    localStorage.setItem('ccm_session_id', sessionId);
+  }
+  return sessionId;
+};
+
 export default function CCMDashboard() {
-  const [sessionId, setSessionId] = useState('');
+  const [sessionId, setSessionId] = useState(getOrCreateSessionId());
   const [repoPath, setRepoPath] = useState('');
   const [isFlowActive, setIsFlowActive] = useState(false);
   const { toast } = useToast();
@@ -42,7 +51,7 @@ export default function CCMDashboard() {
   const detectStuckMutation = useMutation({
     mutationFn: aiAPI.detectStuckState,
     onSuccess: (data) => {
-      toast({ 
+      toast({
         title: data.data.is_stuck ? 'Stuck State Detected' : 'Flow State Good',
         description: data.data.reason || 'Analysis complete'
       });
@@ -93,7 +102,7 @@ export default function CCMDashboard() {
   const createTestEvent = async () => {
     try {
       await contextAPI.createEvent({
-      sessionId: sessionId,
+        sessionId: sessionId,
         agent: 'vscode',
         type: 'file_edit',
         payload: {
@@ -210,14 +219,14 @@ export default function CCMDashboard() {
               <CardTitle>AI Services</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button 
+              <Button
                 onClick={() => generatePromptMutation.mutate({ session_id: sessionId })}
                 disabled={generatePromptMutation.isPending}
                 className="w-full"
               >
                 Generate AI Prompt
               </Button>
-              <Button 
+              <Button
                 onClick={() => detectStuckMutation.mutate(sessionId)}
                 disabled={detectStuckMutation.isPending}
                 variant="outline"
@@ -240,14 +249,14 @@ export default function CCMDashboard() {
                 value={repoPath}
                 onChange={(e) => setRepoPath(e.target.value)}
               />
-              <Button 
+              <Button
                 onClick={() => analyzeRepoMutation.mutate({ session_id: sessionId, repo_path: repoPath })}
                 disabled={!repoPath || analyzeRepoMutation.isPending}
                 className="w-full"
               >
                 Analyze Repository
               </Button>
-              <Button 
+              <Button
                 onClick={() => autoCommitMutation.mutate({ session_id: sessionId, repo_path: repoPath })}
                 disabled={!repoPath || autoCommitMutation.isPending}
                 variant="outline"
@@ -266,7 +275,7 @@ export default function CCMDashboard() {
             </CardHeader>
             <CardContent className="space-y-4">
               {!isFlowActive ? (
-                <Button 
+                <Button
                   onClick={() => startFlowMutation.mutate({ session_id: sessionId })}
                   disabled={startFlowMutation.isPending}
                   className="w-full"
@@ -275,7 +284,7 @@ export default function CCMDashboard() {
                   Start Flow Session
                 </Button>
               ) : (
-                <Button 
+                <Button
                   onClick={() => endFlowMutation.mutate()}
                   disabled={endFlowMutation.isPending}
                   variant="destructive"

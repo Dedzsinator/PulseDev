@@ -8,14 +8,28 @@ import { Progress } from '@/components/ui/progress';
 import { ccmAPI, CCMContextEvent, FlowState, PairProgrammingResponse } from '@/lib/ccm-api';
 import { Brain, GitBranch, Zap, Bot, Code, MessageSquare, Activity, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { notify } from '@/utils/notifications';
+
+const getOrCreateSessionId = () => {
+  let sessionId = localStorage.getItem('ccm_session_id');
+  if (!sessionId) {
+    sessionId = 'ccm_session_' + Date.now();
+    localStorage.setItem('ccm_session_id', sessionId);
+  }
+  return sessionId;
+};
 
 export default function CCMFeatures() {
-  const [sessionId, setSessionId] = useState('ccm_session_' + Date.now());
+  const [sessionId, setSessionId] = useState(getOrCreateSessionId());
   const [flowState, setFlowState] = useState<FlowState | null>(null);
   const [pairResponse, setPairResponse] = useState<PairProgrammingResponse | null>(null);
   const [repoPath, setRepoPath] = useState('/path/to/repo');
   const [filePath, setFilePath] = useState('/path/to/file.py');
   const [loading, setLoading] = useState(false);
+  const [originalIntent, setOriginalIntent] = useState('');
+  const [mergeConflicts, setMergeConflicts] = useState<any[] | null>(null);
+  const [intentDrift, setIntentDrift] = useState<any | null>(null);
+  const [branchSuggestion, setBranchSuggestion] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Real-time flow state monitoring
@@ -41,7 +55,7 @@ export default function CCMFeatures() {
         payload,
         timestamp: new Date().toISOString()
       };
-      
+
       await ccmAPI.storeContextEvent(event);
       toast({
         title: "Context Event Stored",
@@ -82,7 +96,7 @@ export default function CCMFeatures() {
       });
     } catch (error) {
       toast({
-        title: "Error", 
+        title: "Error",
         description: "Failed to suggest commit message",
         variant: "destructive"
       });
@@ -102,7 +116,7 @@ export default function CCMFeatures() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to analyze code impact", 
+        description: "Failed to analyze code impact",
         variant: "destructive"
       });
     } finally {
@@ -112,6 +126,12 @@ export default function CCMFeatures() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
+      <button
+        className="mb-4 px-4 py-2 bg-primary text-white rounded"
+        onClick={() => notify('PulseDev+ Context', 'This is a native notification test!')}
+      >
+        Test Native Notification
+      </button>
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="text-center space-y-4">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
@@ -170,6 +190,18 @@ export default function CCMFeatures() {
               <MessageSquare className="w-4 h-4 mr-2" />
               Integrations
             </TabsTrigger>
+            <TabsTrigger value="merge-resolver">
+              <Shield className="w-4 h-4 mr-2" />
+              Merge Resolver
+            </TabsTrigger>
+            <TabsTrigger value="intent-drift">
+              <Brain className="w-4 h-4 mr-2" />
+              Intent Drift
+            </TabsTrigger>
+            <TabsTrigger value="branch-suggest">
+              <GitBranch className="w-4 h-4 mr-2" />
+              Branch Suggest
+            </TabsTrigger>
           </TabsList>
 
           {/* 1. Cognitive Context Mirror */}
@@ -199,7 +231,7 @@ export default function CCMFeatures() {
                     Simulate Error
                   </Button>
                 </div>
-                
+
                 <Card className="bg-secondary/50">
                   <CardContent className="pt-6">
                     <h4 className="font-semibold mb-2">Context Features</h4>
@@ -231,9 +263,9 @@ export default function CCMFeatures() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button 
-                  onClick={() => simulateContextEvent('ai', 'prompt_generated', { 
-                    model: 'gpt-4', 
+                <Button
+                  onClick={() => simulateContextEvent('ai', 'prompt_generated', {
+                    model: 'gpt-4',
                     context_window: 30,
                     includes: ['error_messages', 'recent_files', 'terminal_output']
                   })}
@@ -241,7 +273,7 @@ export default function CCMFeatures() {
                 >
                   Generate AI Prompt from Context
                 </Button>
-                
+
                 <div className="grid md:grid-cols-3 gap-4">
                   <Card>
                     <CardContent className="pt-6">
@@ -279,20 +311,20 @@ export default function CCMFeatures() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button 
+                <Button
                   onClick={getRubberDuckResponse}
                   disabled={loading}
                   className="w-full"
                 >
                   Ask the Rubber Duck
                 </Button>
-                
+
                 {pairResponse && (
                   <Card className="bg-secondary/50">
                     <CardContent className="pt-6">
                       <h4 className="font-semibold mb-2">🦆 Rubber Duck Says:</h4>
                       <p className="text-sm mb-4">{pairResponse.rubber_duck_response}</p>
-                      
+
                       {pairResponse.stuck_analysis.stuck_detected && (
                         <div className="space-y-2">
                           <Badge variant="destructive">Stuck Detected</Badge>
@@ -303,13 +335,13 @@ export default function CCMFeatures() {
                           </div>
                         </div>
                       )}
-                      
+
                       <div className="mt-4">
                         <p className="text-xs text-muted-foreground">
                           Productivity Score: {Math.round((pairResponse.thought_process.productivity_score || 0) * 100)}%
                         </p>
-                        <Progress 
-                          value={(pairResponse.thought_process.productivity_score || 0) * 100} 
+                        <Progress
+                          value={(pairResponse.thought_process.productivity_score || 0) * 100}
                           className="mt-2"
                         />
                       </div>
@@ -341,15 +373,15 @@ export default function CCMFeatures() {
                     placeholder="/path/to/your/repo"
                   />
                 </div>
-                
-                <Button 
+
+                <Button
                   onClick={suggestCommit}
                   disabled={loading}
                   className="w-full"
                 >
                   Generate Commit Message
                 </Button>
-                
+
                 <Card className="bg-secondary/50">
                   <CardContent className="pt-6">
                     <h4 className="font-semibold mb-2">Example Generated Message:</h4>
@@ -388,7 +420,7 @@ export default function CCMFeatures() {
                             </span>
                           </div>
                           <Progress value={flowState.focus_score * 100} />
-                          
+
                           <div className="flex justify-between">
                             <span className="text-sm">Keystroke Rhythm</span>
                             <span className="text-sm font-mono">
@@ -399,7 +431,7 @@ export default function CCMFeatures() {
                         </div>
                       </CardContent>
                     </Card>
-                    
+
                     <Card>
                       <CardContent className="pt-6">
                         <h4 className="font-semibold">Session Metrics</h4>
@@ -421,8 +453,8 @@ export default function CCMFeatures() {
                     </Card>
                   </div>
                 )}
-                
-                <Button 
+
+                <Button
                   onClick={() => simulateContextEvent('flow', 'flow_start', { trigger: 'manual' })}
                   variant="outline"
                   className="w-full"
@@ -492,15 +524,15 @@ export default function CCMFeatures() {
                     placeholder="/src/components/Button.tsx"
                   />
                 </div>
-                
-                <Button 
+
+                <Button
                   onClick={analyzeCodeImpact}
                   disabled={loading}
                   className="w-full"
                 >
                   Analyze Change Impact
                 </Button>
-                
+
                 <div className="grid md:grid-cols-3 gap-4">
                   <Card className="bg-green-50 dark:bg-green-950/20">
                     <CardContent className="pt-6 text-center">
@@ -557,7 +589,7 @@ export default function CCMFeatures() {
                       </div>
                     </CardContent>
                   </Card>
-                  
+
                   <Card className="bg-secondary/50">
                     <CardContent className="pt-6">
                       <h4 className="font-semibold mb-2">Commit Patterns</h4>
@@ -595,7 +627,7 @@ export default function CCMFeatures() {
                     Generate PR Summary
                   </Button>
                 </div>
-                
+
                 <Card className="bg-secondary/50">
                   <CardContent className="pt-6">
                     <h4 className="font-semibold mb-2">Auto-Integration Features</h4>
@@ -608,6 +640,140 @@ export default function CCMFeatures() {
                     </ul>
                   </CardContent>
                 </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Merge Conflict Resolver */}
+          <TabsContent value="merge-resolver">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Merge Conflict Resolver
+                </CardTitle>
+                <CardDescription>
+                  Detect and resolve merge conflicts with AI-powered suggestions.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  value={repoPath}
+                  onChange={e => setRepoPath(e.target.value)}
+                  placeholder="/path/to/your/repo"
+                  className="mb-2"
+                />
+                <Button
+                  onClick={async () => {
+                    setMergeConflicts(null);
+                    try {
+                      const res = await ccmAPI.detectMergeConflicts(repoPath);
+                      setMergeConflicts(res.data.conflicts || []);
+                      notify('Merge Conflict Resolver', res.data.conflicts?.length ? `${res.data.conflicts.length} conflict(s) found.` : 'No conflicts detected.');
+                    } catch (e) {
+                      notify('Merge Conflict Resolver', 'Error detecting conflicts.');
+                    }
+                  }}
+                  className="w-full"
+                >
+                  Scan for Merge Conflicts
+                </Button>
+                {mergeConflicts && (
+                  <div className="mt-2">
+                    {mergeConflicts.length === 0 ? (
+                      <div className="text-muted-foreground text-sm">No conflicts detected.</div>
+                    ) : (
+                      <ul className="text-sm">
+                        {mergeConflicts.map((c, i) => (
+                          <li key={i}>{c.file} ({c.type})</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Intent Drift Detector */}
+          <TabsContent value="intent-drift">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="w-5 h-5" />
+                  Intent Drift Detector
+                </CardTitle>
+                <CardDescription>
+                  Detects when your recent commits drift from your original intent/task.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  value={originalIntent}
+                  onChange={e => setOriginalIntent(e.target.value)}
+                  placeholder="Describe your original intent/task"
+                  className="mb-2"
+                />
+                <Button
+                  onClick={async () => {
+                    setIntentDrift(null);
+                    try {
+                      const res = await ccmAPI.detectIntentDrift(sessionId, originalIntent);
+                      setIntentDrift(res.data);
+                      notify('Intent Drift Detector', res.data.drift_detected ? 'Drift detected!' : 'No drift detected.');
+                    } catch (e) {
+                      notify('Intent Drift Detector', 'Error detecting drift.');
+                    }
+                  }}
+                  className="w-full"
+                >
+                  Check for Intent Drift
+                </Button>
+                {intentDrift && (
+                  <div className="mt-2 text-sm">
+                    <div>Drift Detected: <b>{intentDrift.drift_detected ? 'Yes' : 'No'}</b></div>
+                    <div>Confidence: {Math.round((intentDrift.confidence || 0) * 100)}%</div>
+                    <div>Recent Commits Analyzed: {intentDrift.recent_commits}</div>
+                    <div>Analysis: {intentDrift.analysis}</div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Auto Branch Suggestion */}
+          <TabsContent value="branch-suggest">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <GitBranch className="w-5 h-5" />
+                  Auto Branch Suggestion
+                </CardTitle>
+                <CardDescription>
+                  Suggests new branch names based on your recent activity and TODOs.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button
+                  onClick={async () => {
+                    setBranchSuggestion(null);
+                    try {
+                      const res = await ccmAPI.suggestBranch(sessionId);
+                      setBranchSuggestion(res.data.suggested_branch);
+                      notify('Auto Branch Suggestion', `Suggested: ${res.data.suggested_branch}`);
+                    } catch (e) {
+                      notify('Auto Branch Suggestion', 'Error suggesting branch.');
+                    }
+                  }}
+                  className="w-full"
+                >
+                  Suggest Branch Name
+                </Button>
+                {branchSuggestion && (
+                  <div className="mt-2 text-sm">
+                    Suggested Branch: <b>{branchSuggestion}</b>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
