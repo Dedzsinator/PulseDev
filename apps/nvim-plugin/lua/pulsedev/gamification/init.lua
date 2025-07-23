@@ -23,6 +23,7 @@ M.user_profile = nil
 M.activity_buffer = {}
 M.last_sync = 0
 M.is_active_session = false
+M._last_active_state = nil
 
 -- Activity tracking
 local activity_types = {
@@ -154,6 +155,19 @@ function M._setup_timers()
       M._update_statusline()
     end, { ['repeat'] = -1 })
   end
+  -- FocusGained/FocusLost event-based session sync
+  vim.api.nvim_create_autocmd('FocusGained', {
+    group = vim.api.nvim_create_augroup('PulseDevGamificationSync', { clear = false }),
+    callback = function()
+      M._sync_session()
+    end
+  })
+  vim.api.nvim_create_autocmd('FocusLost', {
+    group = vim.api.nvim_create_augroup('PulseDevGamificationSync', { clear = false }),
+    callback = function()
+      M._sync_session()
+    end
+  })
 end
 
 function M._track_activity(activity_type, metadata)
@@ -261,8 +275,18 @@ function M._update_statusline()
     level = M.user_profile.level,
     xp = M.user_profile.total_xp,
     streak = M.user_profile.current_streak,
-    active = M.is_active_session
+    active = M.is_active_session,
+    status = M.is_active_session and 'ACTIVE' or 'INACTIVE'
   }
+  -- Show notification if state changed
+  if M._last_active_state ~= nil and M._last_active_state ~= M.is_active_session then
+    if M.is_active_session then
+      vim.notify('PulseDev+ is now the active session in Neovim.', vim.log.levels.INFO, { title = 'PulseDev+' })
+    else
+      vim.notify('PulseDev+ is now inactive (not primary) in Neovim.', vim.log.levels.WARN, { title = 'PulseDev+' })
+    end
+  end
+  M._last_active_state = M.is_active_session
 end
 
 -- Public API

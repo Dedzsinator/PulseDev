@@ -31,6 +31,7 @@ export class BrowserGamificationTracker {
     private lastSync = Date.now();
     private syncInterval: number;
     private isActiveSession = false;
+    private lastActiveState: boolean | null = null;
 
     constructor(config?: Partial<GamificationConfig>) {
         const apiUrl = config?.apiUrl || (window as any).PULSEDEV_API_URL || process.env.PULSEDEV_API_URL || 'http://localhost:8000';
@@ -48,6 +49,10 @@ export class BrowserGamificationTracker {
 
         // Sync session every 5 minutes
         setInterval(() => this.syncSession(), 5 * 60 * 1000);
+
+        // Focus/blur event-based session sync
+        window.addEventListener('focus', this.syncSession);
+        window.addEventListener('blur', this.syncSession);
     }
 
     public updateConfig(config: Partial<GamificationConfig>) {
@@ -191,30 +196,42 @@ export class BrowserGamificationTracker {
         }
     }
 
-    private async syncSession() {
+    private syncSession = async () => {
         try {
             const response = await fetch(`${this.config.apiUrl}/api/v1/gamification/session/sync`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    session_id: this.config.sessionId,
-                    platform: 'browser'
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: this.config.sessionId, platform: 'browser' })
             });
-
             const result = await response.json();
             if (result.success) {
                 this.isActiveSession = result.sync_data.active_session === this.config.sessionId;
-                // Update badge with current stats
-                if (result.sync_data.user_profile) {
-                    this.updateBadge(result.sync_data.user_profile);
-                }
+                this.updateActiveBadge();
             }
         } catch (error) {
-            console.error('Failed to sync session:', error);
+            this.isActiveSession = false;
+            this.updateActiveBadge();
         }
+    };
+
+    private updateActiveBadge() {
+        if (typeof chrome !== 'undefined' && chrome.action) {
+            chrome.action.setBadgeText({ text: this.isActiveSession ? 'ON' : 'OFF' });
+            chrome.action.setBadgeBackgroundColor({ color: this.isActiveSession ? '#4CAF50' : '#F44336' });
+            chrome.action.setTitle({ title: this.isActiveSession ? 'PulseDev+ (Active)' : 'PulseDev+ (Inactive - Not Primary)' });
+        }
+        // Show notification if state changed
+        if (this.lastActiveState !== null && this.lastActiveState !== this.isActiveSession) {
+            if (typeof chrome !== 'undefined' && chrome.notifications) {
+                chrome.notifications.create({
+                    type: 'basic',
+                    iconUrl: 'icons/icon-48.png',
+                    title: 'PulseDev+ Session',
+                    message: this.isActiveSession ? 'This browser is now the active PulseDev+ session.' : 'This browser is now inactive (not primary).'
+                });
+            }
+        }
+        this.lastActiveState = this.isActiveSession;
     }
 
     private updateBadge(userProfile: any) {

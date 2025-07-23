@@ -32,10 +32,12 @@ interface Achievement {
 
 export class GamificationTracker {
     private config: GamificationConfig;
+    private isActiveSession = false;
     private statusBarItem: vscode.StatusBarItem;
     private userProfile: UserProfile | null = null;
     private activityBuffer: Array<any> = [];
     private lastSync = Date.now();
+    private lastActiveState: boolean | null = null;
 
     constructor(context: vscode.ExtensionContext, sessionId: string) {
         this.config = {
@@ -56,6 +58,14 @@ export class GamificationTracker {
 
         // Sync every 5 minutes
         setInterval(() => this.syncSession(), 5 * 60 * 1000);
+        // Focus/blur event-based session sync
+        vscode.window.onDidChangeWindowState((state) => {
+            if (state.focused) {
+                this.syncSession();
+            } else {
+                this.syncSession();
+            }
+        });
     }
 
     private initializeTracking(context: vscode.ExtensionContext) {
@@ -108,7 +118,7 @@ export class GamificationTracker {
     }
 
     private async trackActivity(type: string, metadata: any) {
-        if (!this.config.enabled) return;
+        if (!this.config.enabled || !this.isActiveSession) return;
 
         const activity = {
             type,
@@ -129,6 +139,7 @@ export class GamificationTracker {
     }
 
     private async awardXP(source: string, metadata: any) {
+        if (!this.config.enabled || !this.isActiveSession) return;
         try {
             const response = await axios.post(`${this.config.apiUrl}/api/v1/gamification/xp/award`, {
                 session_id: this.config.sessionId,
@@ -164,12 +175,18 @@ export class GamificationTracker {
 
     private async syncSession() {
         try {
-            await axios.post(`${this.config.apiUrl}/api/v1/gamification/session/sync`, {
+            const response = await axios.post(`${this.config.apiUrl}/api/v1/gamification/session/sync`, {
                 session_id: this.config.sessionId,
                 platform: 'vscode'
             });
+            const result = response.data;
+            if (result.success) {
+                this.isActiveSession = result.sync_data.active_session === this.config.sessionId;
+                this.updateStatusBar();
+            }
         } catch (error) {
-            console.error('Failed to sync session:', error);
+            this.isActiveSession = false;
+            this.updateStatusBar();
         }
     }
 
@@ -191,11 +208,23 @@ export class GamificationTracker {
     }
 
     private updateStatusBar() {
-        if (!this.userProfile) return;
-
-        this.statusBarItem.text = `$(pulse) Lv.${this.userProfile.level} | ${this.userProfile.total_xp}XP | 🔥${this.userProfile.current_streak}`;
-        this.statusBarItem.tooltip = `PulseDev+ Gamification\nLevel: ${this.userProfile.level}\nXP: ${this.userProfile.total_xp}\nStreak: ${this.userProfile.current_streak} days`;
+        if (this.isActiveSession) {
+            this.statusBarItem.text = '$(rocket) PulseDev+ (Active)';
+            this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.prominentBackground');
+        } else {
+            this.statusBarItem.text = '$(circle-slash) PulseDev+ (Inactive)';
+            this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        }
         this.statusBarItem.show();
+        // Show notification if state changed
+        if (this.lastActiveState !== null && this.lastActiveState !== this.isActiveSession) {
+            if (this.isActiveSession) {
+                vscode.window.showInformationMessage('PulseDev+ is now the active session in VSCode.');
+            } else {
+                vscode.window.showWarningMessage('PulseDev+ is now inactive (not primary) in VSCode.');
+            }
+        }
+        this.lastActiveState = this.isActiveSession;
     }
 
     private showXPNotification(xpEarned: number, source: string) {
