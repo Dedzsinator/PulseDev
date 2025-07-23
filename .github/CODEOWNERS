@@ -1,0 +1,6 @@
+*       @your-org/maintainers
+apps/ccm-api/   @your-org/backend
+src/            @your-org/frontend
+apps/vscode-plugin/ @your-org/vscode
+apps/nvim-plugin/ @your-org/nvim
+apps/browser-extension/ @your-org/browser 

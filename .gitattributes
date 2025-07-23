@@ -1,0 +1,7 @@
+* text=auto
+*.js linguist-language=JavaScript
+*.ts linguist-language=TypeScript
+*.py linguist-language=Python
+*.rs linguist-language=Rust
+*.lua linguist-language=Lua
+*.md linguist-language=Markdown 
