@@ -1,6 +1,15 @@
+// Add this at the top of the file for TypeScript global chrome support
+// @ts-ignore
+declare const chrome: any;
+
 /**
  * PulseDev+ Browser Extension Gamification Tracker
  * Tracks browser activities and syncs with gamification API
+ *
+ * Configurable via constructor or environment variables:
+ *   - apiUrl: API endpoint (default: window.PULSEDEV_API_URL or 'http://localhost:8000')
+ *   - sessionId: Session ID (default: generated)
+ *   - enabled: Enable/disable tracking (default: true)
  */
 
 interface GamificationConfig {
@@ -23,12 +32,11 @@ export class BrowserGamificationTracker {
     private syncInterval: number;
     private isActiveSession = false;
 
-    constructor() {
-        this.config = {
-            apiUrl: 'http://localhost:8000', // TODO: Make configurable
-            sessionId: this.generateSessionId(),
-            enabled: true
-        };
+    constructor(config?: Partial<GamificationConfig>) {
+        const apiUrl = config?.apiUrl || (window as any).PULSEDEV_API_URL || process.env.PULSEDEV_API_URL || 'http://localhost:8000';
+        const sessionId = config?.sessionId || this.generateSessionId();
+        const enabled = config?.enabled !== undefined ? config.enabled : true;
+        this.config = { apiUrl, sessionId, enabled };
 
         this.initializeTracking();
         this.syncSession();
@@ -42,63 +50,77 @@ export class BrowserGamificationTracker {
         setInterval(() => this.syncSession(), 5 * 60 * 1000);
     }
 
+    public updateConfig(config: Partial<GamificationConfig>) {
+        if (config.apiUrl) this.config.apiUrl = config.apiUrl;
+        if (config.sessionId) this.config.sessionId = config.sessionId;
+        if (config.enabled !== undefined) this.config.enabled = config.enabled;
+    }
+
     private generateSessionId(): string {
         return `browser_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
 
     private initializeTracking() {
         // Track tab switches
-        chrome.tabs.onActivated.addListener((activeInfo) => {
-            this.trackActivity('tab_switch', {
-                tab_id: activeInfo.tabId
-            });
-        });
-
-        // Track page navigation
-        chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-            if (changeInfo.status === 'complete' && tab.url) {
-                this.trackActivity('page_navigation', {
-                    tab_id: tabId,
-                    url: this.sanitizeUrl(tab.url),
-                    title: tab.title
+        if (typeof chrome !== 'undefined' && chrome.tabs) {
+            chrome.tabs.onActivated.addListener((activeInfo) => {
+                this.trackActivity('tab_switch', {
+                    tab_id: activeInfo.tabId
                 });
+            });
 
-                // Award XP for development-related sites
-                if (this.isDevelopmentSite(tab.url)) {
-                    this.awardXP('dev_browsing', {
+            // Track page navigation
+            chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+                if (changeInfo.status === 'complete' && tab.url) {
+                    this.trackActivity('page_navigation', {
+                        tab_id: tabId,
                         url: this.sanitizeUrl(tab.url),
                         title: tab.title
                     });
+
+                    // Award XP for development-related sites
+                    if (this.isDevelopmentSite(tab.url)) {
+                        this.awardXP('dev_browsing', {
+                            url: this.sanitizeUrl(tab.url),
+                            title: tab.title
+                        });
+                    }
                 }
-            }
-        });
+            });
+        }
 
         // Track window focus
-        chrome.windows.onFocusChanged.addListener((windowId) => {
-            if (windowId === chrome.windows.WINDOW_ID_NONE) {
-                this.trackActivity('browser_blur', {});
-            } else {
-                this.trackActivity('browser_focus', { window_id: windowId });
-            }
-        });
+        if (typeof chrome !== 'undefined' && chrome.windows) {
+            chrome.windows.onFocusChanged.addListener((windowId) => {
+                if (windowId === chrome.windows.WINDOW_ID_NONE) {
+                    this.trackActivity('browser_blur', {});
+                } else {
+                    this.trackActivity('browser_focus', { window_id: windowId });
+                }
+            });
+        }
 
         // Track bookmark creation (dev resources)
-        chrome.bookmarks.onCreated.addListener((id, bookmark) => {
-            if (bookmark.url && this.isDevelopmentSite(bookmark.url)) {
-                this.awardXP('dev_bookmark', {
-                    url: this.sanitizeUrl(bookmark.url),
-                    title: bookmark.title
-                });
-            }
-        });
+        if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+            chrome.bookmarks.onCreated.addListener((id, bookmark) => {
+                if (bookmark.url && this.isDevelopmentSite(bookmark.url)) {
+                    this.awardXP('dev_bookmark', {
+                        url: this.sanitizeUrl(bookmark.url),
+                        title: bookmark.title
+                    });
+                }
+            });
+        }
 
         // Listen for messages from content scripts
-        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-            if (message.type === 'gamification_activity') {
-                this.trackActivity(message.activity_type, message.metadata);
-                this.awardXP(message.activity_type, message.metadata);
-            }
-        });
+        if (typeof chrome !== 'undefined' && chrome.runtime) {
+            chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+                if (message.type === 'gamification_activity') {
+                    this.trackActivity(message.activity_type, message.metadata);
+                    this.awardXP(message.activity_type, message.metadata);
+                }
+            });
+        }
     }
 
     private async trackActivity(type: string, metadata: any) {
@@ -185,7 +207,6 @@ export class BrowserGamificationTracker {
             const result = await response.json();
             if (result.success) {
                 this.isActiveSession = result.sync_data.active_session === this.config.sessionId;
-                
                 // Update badge with current stats
                 if (result.sync_data.user_profile) {
                     this.updateBadge(result.sync_data.user_profile);
@@ -197,33 +218,39 @@ export class BrowserGamificationTracker {
     }
 
     private updateBadge(userProfile: any) {
-        // Update extension badge with level
-        chrome.action.setBadgeText({
-            text: `L${userProfile.level}`
-        });
+        if (typeof chrome !== 'undefined' && chrome.action) {
+            // Update extension badge with level
+            chrome.action.setBadgeText({
+                text: `L${userProfile.level}`
+            });
 
-        chrome.action.setBadgeBackgroundColor({
-            color: '#4CAF50'
-        });
+            chrome.action.setBadgeBackgroundColor({
+                color: '#4CAF50'
+            });
 
-        chrome.action.setTitle({
-            title: `PulseDev+ | Level ${userProfile.level} | ${userProfile.total_xp} XP | 🔥${userProfile.current_streak}`
-        });
+            chrome.action.setTitle({
+                title: `PulseDev+ | Level ${userProfile.level} | ${userProfile.total_xp} XP | 🔥${userProfile.current_streak}`
+            });
+        }
     }
 
     private showXPNotification(xpEarned: number, source: string) {
-        // Create notification
-        chrome.notifications.create({
-            type: 'basic',
-            iconUrl: 'icons/icon-48.png',
-            title: 'PulseDev+ XP Earned!',
-            message: `+${xpEarned} XP from ${source}`
-        });
+        if (typeof chrome !== 'undefined' && chrome.notifications) {
+            // Create notification
+            chrome.notifications.create({
+                type: 'basic',
+                iconUrl: 'icons/icon-48.png',
+                title: 'PulseDev+ XP Earned!',
+                message: `+${xpEarned} XP from ${source}`
+            });
 
-        // Auto-clear notification after 3 seconds
-        setTimeout(() => {
-            chrome.notifications.clear('xp_notification');
-        }, 3000);
+            // Auto-clear notification after 3 seconds
+            setTimeout(() => {
+                if (chrome.notifications) {
+                    chrome.notifications.clear('xp_notification');
+                }
+            }, 3000);
+        }
     }
 
     private isDevelopmentSite(url: string): boolean {
@@ -272,5 +299,5 @@ export class BrowserGamificationTracker {
     }
 }
 
-// Initialize gamification tracker
+// Initialize gamification tracker with default config
 export const gamificationTracker = new BrowserGamificationTracker();
