@@ -66,7 +66,7 @@ interface GamificationData {
   };
 }
 
-export const GamificationDashboard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
+function GamificationDashboard({ sessionId }: { sessionId: string }) {
   const [data, setData] = useState<GamificationData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -85,7 +85,7 @@ export const GamificationDashboard: React.FC<{ sessionId: string }> = ({ session
     };
 
     loadDashboard();
-    const interval = setInterval(loadDashboard, 30000); // Refresh every 30 seconds
+    const interval = setInterval(loadDashboard, 30000);
     return () => clearInterval(interval);
   }, [sessionId]);
 
@@ -345,4 +345,6 @@ export const GamificationDashboard: React.FC<{ sessionId: string }> = ({ session
       </Tabs>
     </div>
   );
-};
+}
+
+export default GamificationDashboard;

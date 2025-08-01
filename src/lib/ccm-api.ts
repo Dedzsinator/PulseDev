@@ -145,4 +145,61 @@ export const ccmAPI = {
     api.post('/git/suggest-branch', { session_id: sessionId }),
 };
 
+// SCRUM API
+export const scrumAPI = {
+  // Sprint Management
+  getCurrentSprint: (teamId: string) =>
+    api.get(`/scrum/sprint/current/${teamId}`),
+  
+  createSprint: (sprintData: {
+    team_id: string;
+    name: string;
+    goal: string;
+    start_date: string;
+    end_date: string;
+  }) => api.post('/scrum/sprint', sprintData),
+  
+  startSprint: (teamId: string, sprintId: string) =>
+    api.post(`/scrum/sprint/${sprintId}/start`, { team_id: teamId }),
+  
+  completeSprint: (teamId: string, sprintId: string) =>
+    api.post(`/scrum/sprint/${sprintId}/complete`, { team_id: teamId }),
+  
+  // User Story Management
+  getBacklog: (teamId: string) =>
+    api.get(`/scrum/backlog/${teamId}`),
+  
+  createUserStory: (storyData: {
+    team_id: string;
+    title: string;
+    description: string;
+    story_points: number;
+    acceptance_criteria: string[];
+  }) => api.post('/scrum/story', storyData),
+  
+  updateUserStoryStatus: (teamId: string, storyId: string, status: string) =>
+    api.patch(`/scrum/story/${storyId}/status`, { team_id: teamId, status }),
+  
+  // Sprint Metrics
+  getSprintMetrics: (teamId: string, sprintId: string) =>
+    api.get(`/scrum/metrics/${teamId}/${sprintId}`),
+  
+  getBurndownData: (teamId: string, sprintId: string) =>
+    api.get(`/scrum/burndown/${teamId}/${sprintId}`),
+  
+  getVelocityHistory: (teamId: string) =>
+    api.get(`/scrum/velocity/${teamId}`),
+  
+  // Retrospective
+  createRetrospectiveItem: (itemData: {
+    team_id: string;
+    sprint_id: string;
+    category: 'went_well' | 'didnt_go_well' | 'action_items';
+    content: string;
+  }) => api.post('/scrum/retrospective', itemData),
+  
+  getRetrospectiveItems: (teamId: string, sprintId: string) =>
+    api.get(`/scrum/retrospective/${teamId}/${sprintId}`),
+};
+
 export default api;

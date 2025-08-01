@@ -20,6 +20,15 @@ PulseDev+ is a comprehensive developer productivity ecosystem that captures, ana
 - **Flow State Detection**: AI-powered flow state recognition
 - **Productivity Metrics**: Deep work sessions and focus scores
 
+### 📋 SCRUM Management
+- **Sprint Planning**: Create and manage sprints with goals and timelines
+- **Product Backlog**: Organize user stories with story points
+- **Sprint Board**: Kanban-style story tracking (Backlog → In Progress → Review → Done)
+- **Burndown Charts**: Visual sprint progress tracking
+- **Velocity Tracking**: Team performance metrics across sprints
+- **Sprint Retrospectives**: Capture what went well, issues, and action items
+- **Story Point Estimation**: Fibonacci-based estimation system
+
 ### 🤖 AI-Powered Features
 - **Rubber Duck Programming**: AI pair programming assistant
 - **Auto Commit Messages**: Context-aware commit generation
@@ -73,20 +82,37 @@ PulseDev+ is a comprehensive developer productivity ecosystem that captures, ana
 
 ### Development Setup
 
+#### Quick Start (Recommended)
 1. **Clone and start services**:
    ```bash
    git clone <repository>
    cd pulsedev-plus
-   make dev
+   chmod +x scripts/dev-setup.sh
+   ./scripts/dev-setup.sh
    ```
 
-2. **Access the applications**:
-   - **Frontend Dashboard**: http://localhost:3000
+#### Manual Setup
+1. **Start backend services**:
+   ```bash
+   docker-compose up -d postgres redis
+   cd apps/ccm-api && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+2. **Start frontend**:
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+3. **Access the applications**:
+   - **Frontend Dashboard**: http://localhost:5173
    - **API Documentation**: http://localhost:8000/docs
+   - **Database**: postgresql://postgres:password@localhost:5432/pulsedev_ccm
+   - **Redis**: redis://localhost:6379
    - **Grafana Monitoring**: http://localhost:3001 (admin/admin)
    - **n8n Workflows**: http://localhost:5678 (admin/password)
 
-3. **Install plugins**:
+4. **Install plugins**:
    ```bash
    # VSCode Plugin
    cd apps/vscode-plugin && npm install && npm run compile
@@ -97,6 +123,21 @@ PulseDev+ is a comprehensive developer productivity ecosystem that captures, ana
    # Neovim Plugin (copy to your config)
    cp -r apps/nvim-plugin/lua/pulsedev ~/.config/nvim/lua/
    ```
+
+#### Testing
+```bash
+# Run all tests
+make test
+
+# Frontend tests only
+npm test
+
+# Backend tests only
+cd apps/ccm-api && python -m pytest
+
+# E2E tests
+npm run test:e2e
+```
 
 ### Production Deployment
 
@@ -128,6 +169,16 @@ PulseDev+ is a comprehensive developer productivity ecosystem that captures, ana
 - `POST /api/v1/gamification/xp/{sessionId}` - Award XP
 - `POST /api/v1/gamification/streak/{sessionId}` - Update streak
 - `GET /api/v1/gamification/leaderboard` - Get leaderboards
+
+### SCRUM Management
+- `POST /api/v1/scrum/sprint` - Create new sprint
+- `GET /api/v1/scrum/sprint/current/{teamId}` - Get current sprint
+- `POST /api/v1/scrum/sprint/{sprintId}/start` - Start sprint
+- `POST /api/v1/scrum/story` - Create user story
+- `GET /api/v1/scrum/backlog/{teamId}` - Get product backlog
+- `PATCH /api/v1/scrum/story/{storyId}/status` - Update story status
+- `GET /api/v1/scrum/metrics/{teamId}/{sprintId}` - Sprint metrics
+- `GET /api/v1/scrum/burndown/{teamId}/{sprintId}` - Burndown data
 
 ### Flow & AI
 - `GET /api/v1/ccm/flow/state/{sessionId}` - Flow state
@@ -310,7 +361,8 @@ make plugin-nvim
 - [ ] Code quality scoring
 
 ### Phase 3: Advanced Features 📋
-- [ ] Team collaboration
+- [x] SCRUM sprint management
+- [x] Team collaboration features
 - [ ] Code review automation
 - [ ] Performance recommendations
 - [ ] Workstation analytics

@@ -346,6 +346,62 @@ INSERT INTO achievements (name, description, icon, category, xp_reward, unlock_c
 ('Weekend Warrior', 'Code on weekends', '⚡', 'special', 50, '{"weekend_coding": true}', 'silver'),
 ('Productivity Beast', 'Earn 1000 XP in one day', '🔥', 'special', 300, '{"daily_xp": 1000}', 'gold');
 
+-- SCRUM Management Tables
+CREATE TABLE sprints (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id VARCHAR(255) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    goal TEXT,
+    start_date TIMESTAMPTZ,
+    end_date TIMESTAMPTZ,
+    status VARCHAR(50) DEFAULT 'planning',
+    velocity INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE user_stories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id VARCHAR(255) NOT NULL,
+    sprint_id UUID REFERENCES sprints(id),
+    title VARCHAR(500) NOT NULL,
+    description TEXT,
+    story_points INTEGER DEFAULT 1,
+    status VARCHAR(50) DEFAULT 'backlog',
+    assignee VARCHAR(255),
+    priority INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    story_id UUID REFERENCES user_stories(id) ON DELETE CASCADE,
+    title VARCHAR(500) NOT NULL,
+    description TEXT,
+    status VARCHAR(50) DEFAULT 'todo',
+    estimated_hours DECIMAL(5,2) DEFAULT 0,
+    actual_hours DECIMAL(5,2),
+    assignee VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE retrospective_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id VARCHAR(255) NOT NULL,
+    sprint_id UUID REFERENCES sprints(id),
+    category VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- SCRUM Indexes
+CREATE INDEX idx_sprints_team ON sprints(team_id, status, created_at DESC);
+CREATE INDEX idx_user_stories_team_sprint ON user_stories(team_id, sprint_id, status);
+CREATE INDEX idx_tasks_story ON tasks(story_id, status);
+CREATE INDEX idx_retrospective_sprint ON retrospective_items(sprint_id, category);
+
 -- Gamification triggers
 CREATE TRIGGER update_user_profiles_updated_at 
     BEFORE UPDATE ON user_profiles 

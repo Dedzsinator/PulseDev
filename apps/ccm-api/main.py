@@ -132,6 +132,10 @@ async def init_database():
 app.include_router(router, prefix="/api/v1")
 app.include_router(gamification_router)
 
+# Include SCRUM routes
+from api.scrum_routes import router as scrum_router
+app.include_router(scrum_router, prefix="/api/v1")
+
 # Initialize services
 Config.validate()
 
