@@ -49,15 +49,21 @@ describe('GamificationDashboard', () => {
   it('renders loading state initially', () => {
     mockedCcmApi.getGamificationDashboard.mockImplementation(() => new Promise(() => { }))
 
-    render(<GamificationDashboard />)
+    render(<GamificationDashboard sessionId="test-session" />)
 
     expect(screen.getByText('Loading gamification data...')).toBeInTheDocument()
   })
 
   it('renders dashboard data successfully', async () => {
-    mockedCcmApi.getGamificationDashboard.mockResolvedValue(mockDashboardData)
+    mockedCcmApi.getGamificationDashboard.mockResolvedValue({ 
+      data: mockDashboardData,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {}
+    } as any)
 
-    render(<GamificationDashboard />)
+    render(<GamificationDashboard sessionId="test-session" />)
 
     await waitFor(() => {
       expect(screen.getByText('Gamification Dashboard')).toBeInTheDocument()
@@ -81,7 +87,7 @@ describe('GamificationDashboard', () => {
   it('handles API error gracefully', async () => {
     mockedCcmApi.getGamificationDashboard.mockRejectedValue(new Error('API Error'))
 
-    render(<GamificationDashboard />)
+    render(<GamificationDashboard sessionId="test-session" />)
 
     await waitFor(() => {
       expect(screen.getByText('Error loading gamification data. Please try again.')).toBeInTheDocument()
@@ -89,19 +95,31 @@ describe('GamificationDashboard', () => {
   })
 
   it('calls API with correct session ID', async () => {
-    mockedCcmApi.getGamificationDashboard.mockResolvedValue(mockDashboardData)
+    mockedCcmApi.getGamificationDashboard.mockResolvedValue({ 
+      data: mockDashboardData,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {}
+    } as any)
 
-    render(<GamificationDashboard />)
+    render(<GamificationDashboard sessionId="test-session" />)
 
     await waitFor(() => {
-      expect(mockedCcmApi.getGamificationDashboard).toHaveBeenCalledWith('default-session')
+      expect(mockedCcmApi.getGamificationDashboard).toHaveBeenCalledWith('test-session')
     })
   })
 
   it('displays achievement unlock dates correctly', async () => {
-    mockedCcmApi.getGamificationDashboard.mockResolvedValue(mockDashboardData)
+    mockedCcmApi.getGamificationDashboard.mockResolvedValue({ 
+      data: mockDashboardData,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {}
+    } as any)
 
-    render(<GamificationDashboard />)
+    render(<GamificationDashboard sessionId="test-session" />)
 
     await waitFor(() => {
       expect(screen.getByText('Unlocked: January 1, 2024')).toBeInTheDocument()

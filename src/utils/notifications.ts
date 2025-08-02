@@ -1,4 +1,14 @@
-import { invoke } from '@tauri-apps/api/tauri';
+// Mock Tauri import for web environment
+const invoke = async (command: string, args: any) => {
+  console.log(`Tauri command: ${command}`, args);
+  throw new Error('Tauri not available in web environment');
+};
+
+declare global {
+  interface Window {
+    toaster?: (options: { title: string; description: string }) => void;
+  }
+}
 
 export async function notify(title: string, body: string) {
   try {
@@ -12,4 +22,4 @@ export async function notify(title: string, body: string) {
       alert(`${title}\n${body}`);
     }
   }
-} 
+}

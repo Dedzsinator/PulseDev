@@ -1,4 +1,8 @@
-import { invoke } from '@tauri-apps/api/tauri';
+// Mock Tauri import for web environment
+const invoke = async (command: string, args?: any) => {
+  console.log(`Tauri command: ${command}`, args);
+  throw new Error('Tauri not available in web environment');
+};
 
 export async function pickFile(): Promise<string | null> {
   return await invoke('pick_file');

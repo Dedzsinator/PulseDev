@@ -1,16 +1,23 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ccmAPI } from '../ccm-api'
-import { api } from '../api'
 
-vi.mock('../api')
-const mockedApi = vi.mocked(api)
+// Mock the API module
+const mockPost = vi.fn()
+const mockGet = vi.fn()
+
+vi.mock('../api', () => ({
+  default: {
+    post: mockPost,
+    get: mockGet,
+  }
+}))
 
 describe('CCM API Functions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('submitContextEvent', () => {
+  describe('storeContextEvent', () => {
     it('should submit context event successfully', async () => {
       const mockEvent = {
         sessionId: 'test-session',
@@ -21,11 +28,11 @@ describe('CCM API Functions', () => {
       }
 
       const mockResponse = { data: { status: 'success', event_id: '123' } }
-      mockedApi.post.mockResolvedValue(mockResponse)
+      mockPost.mockResolvedValue(mockResponse)
 
-      const result = await ccmAPI.submitContextEvent(mockEvent)
+      const result = await ccmAPI.storeContextEvent(mockEvent)
 
-      expect(mockedApi.post).toHaveBeenCalledWith('/api/v1/context/events', mockEvent)
+      expect(mockPost).toHaveBeenCalledWith('/api/v1/context/events', mockEvent)
       expect(result).toEqual(mockResponse.data)
     })
 
@@ -38,9 +45,9 @@ describe('CCM API Functions', () => {
         timestamp: new Date().toISOString()
       }
 
-      mockedApi.post.mockRejectedValue(new Error('API Error'))
+      mockPost.mockRejectedValue(new Error('API Error'))
 
-      await expect(ccmAPI.submitContextEvent(mockEvent)).rejects.toThrow('API Error')
+      await expect(ccmAPI.storeContextEvent(mockEvent)).rejects.toThrow('API Error')
     })
   })
 
@@ -58,33 +65,35 @@ describe('CCM API Functions', () => {
         }
       }
 
-      mockedApi.get.mockResolvedValue(mockResponse)
+      mockGet.mockResolvedValue(mockResponse)
 
       const result = await ccmAPI.getGamificationDashboard(sessionId)
 
-      expect(mockedApi.get).toHaveBeenCalledWith(`/api/v1/gamification/dashboard/${sessionId}`)
+      expect(mockGet).toHaveBeenCalledWith(`/api/v1/gamification/dashboard/${sessionId}`)
       expect(result).toEqual(mockResponse.data)
     })
   })
 
   describe('awardXP', () => {
     it('should award XP successfully', async () => {
-      const request = {
-        session_id: 'test-session',
-        source: 'commit',
-        amount: 100,
-        description: 'Test commit'
-      }
+      const sessionId = 'test-session'
+      const source = 'commit'
+      const amount = 100
+      const description = 'Test commit'
 
       const mockResponse = {
         data: { success: true, xp_earned: 100 }
       }
 
-      mockedApi.post.mockResolvedValue(mockResponse)
+      mockPost.mockResolvedValue(mockResponse)
 
-      const result = await ccmAPI.awardXP(request)
+      const result = await ccmAPI.awardXP(sessionId, source, amount, { description })
 
-      expect(mockedApi.post).toHaveBeenCalledWith('/api/v1/gamification/xp/award', request)
+      expect(mockPost).toHaveBeenCalledWith(`/gamification/xp/${sessionId}`, {
+        source: source,
+        amount: amount,
+        metadata: { description }
+      })
       expect(result).toEqual(mockResponse.data)
     })
   })
@@ -101,11 +110,11 @@ describe('CCM API Functions', () => {
         }
       }
 
-      mockedApi.get.mockResolvedValue(mockResponse)
+      mockGet.mockResolvedValue(mockResponse)
 
       const result = await ccmAPI.getLeaderboard('xp', 'weekly')
 
-      expect(mockedApi.get).toHaveBeenCalledWith('/api/v1/gamification/leaderboard?category=xp&period=weekly')
+      expect(mockGet).toHaveBeenCalledWith('/api/v1/gamification/leaderboard?category=xp&period=weekly')
       expect(result).toEqual(mockResponse.data)
     })
   })

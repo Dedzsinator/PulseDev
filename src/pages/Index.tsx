@@ -40,7 +40,7 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="gamification">
-            <GamificationDashboard />
+            <GamificationDashboard sessionId="default-session" />
           </TabsContent>
 
           <TabsContent value="scrum">

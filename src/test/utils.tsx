@@ -1,5 +1,6 @@
 import React, { ReactElement } from 'react'
-import { render, RenderOptions, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, RenderOptions } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -29,5 +30,5 @@ const customRender = (
   options?: Omit<RenderOptions, 'wrapper'>,
 ) => render(ui, { wrapper: AllTheProviders, ...options })
 
-export { screen, fireEvent, waitFor } from '@testing-library/react'
+export { screen, fireEvent, waitFor }
 export { customRender as render }
