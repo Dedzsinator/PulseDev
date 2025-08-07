@@ -15,6 +15,7 @@ from config import Config
 from models.events import ContextEvent, EventType, Agent
 from api.routes import router
 from api.gamification_routes import router as gamification_router
+from services.auto_training_service import AutoTrainingService
 from services.ai_service import AIService
 from services.git_service import GitService
 from services.flow_service import FlowService
@@ -139,7 +140,29 @@ app.include_router(scrum_router, prefix="/api/v1")
 # Initialize services
 Config.validate()
 
-# ... keep existing code (database initialization, dependencies, and legacy endpoints)
+# Initialize auto-training service
+auto_training_service = AutoTrainingService()
+
+@app.on_event("startup")
+async def startup_event():
+    """Load trained models on startup"""
+    auto_training_service.load_trained_models()
+    
+    # Start auto-training background task
+    import asyncio
+    asyncio.create_task(auto_training_task())
+
+async def auto_training_task():
+    """Background task to run auto-training periodically"""
+    while True:
+        try:
+            async with db_pool.acquire() as db:
+                await auto_training_service.auto_train(db)
+        except Exception as e:
+            print(f"Auto-training error: {e}")
+        
+        # Wait 1 hour before checking again
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
     import uvicorn
