@@ -11,8 +11,8 @@ import redis
 from datetime import datetime
 import logging
 
-from ..services.gamification_service import GamificationService
-from ..config import get_db_connection, get_redis_connection
+from services.gamification_service import GamificationService
+from config import get_db_connection, get_redis_connection
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/gamification", tags=["gamification"])
@@ -60,7 +60,7 @@ async def award_xp(
             description=request.description,
             metadata=request.metadata
         )
-        
+
         return {
             "success": True,
             "xp_earned": xp_earned,
@@ -82,7 +82,7 @@ async def sync_session(
             session_id=request.session_id,
             platform=request.platform
         )
-        
+
         return {
             "success": True,
             "sync_data": sync_data
@@ -152,10 +152,10 @@ async def track_activity(
     try:
         session_id = activity_data.get("session_id")
         activity_type = activity_data.get("type")
-        
+
         if not session_id or not activity_type:
             raise HTTPException(status_code=400, detail="session_id and type are required")
-        
+
         # Award XP in background
         background_tasks.add_task(
             _process_activity_xp,
@@ -164,7 +164,7 @@ async def track_activity(
             activity_type,
             activity_data
         )
-        
+
         return {
             "success": True,
             "message": "Activity tracked successfully"
@@ -185,7 +185,7 @@ async def get_gamification_dashboard(
         achievements = await gamification.get_achievements(session_id)
         leaderboard_xp = await gamification.get_leaderboards("xp", "weekly")
         leaderboard_streaks = await gamification.get_leaderboards("streaks", "weekly")
-        
+
         return {
             "success": True,
             "dashboard": {
@@ -219,16 +219,16 @@ async def _process_activity_xp(
             'error_resolve': 'error_resolve',
             'context_switch': 'context_switch'
         }
-        
+
         source = xp_mapping.get(activity_type, activity_type)
-        
+
         await gamification.award_xp(
             session_id=session_id,
             source=source,
             description=f"Activity: {activity_type}",
             metadata=activity_data
         )
-        
+
         logger.info(f"XP awarded for {activity_type} to session {session_id}")
     except Exception as e:
         logger.error(f"Error processing activity XP: {e}")

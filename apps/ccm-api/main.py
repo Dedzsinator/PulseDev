@@ -15,7 +15,18 @@ from config import Config
 from models.events import ContextEvent, EventType, Agent
 from api.routes import router
 from api.gamification_routes import router as gamification_router
-from services.auto_training_service import AutoTrainingService
+import dependencies
+
+# Try to import AI/ML services, with fallbacks for missing dependencies
+try:
+    from services.auto_training_service import AutoTrainingService
+    ML_AVAILABLE = True
+except ImportError:
+    print("⚠️  ML dependencies not available - AI training disabled")
+    AutoTrainingService = None
+    ML_AVAILABLE = False
+
+# Import other services
 from services.ai_service import AIService
 from services.git_service import GitService
 from services.flow_service import FlowService
@@ -35,22 +46,45 @@ redis_client: Optional[redis.Redis] = None
 async def lifespan(app: FastAPI):
     # Startup
     global db_pool, redis_client
-    
+
     # Initialize PostgreSQL connection
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/pulsedev_ccm")
-    db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
-    
+    try:
+        db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
+        print("✅ Database connection established")
+        # Set up dependency injection
+        dependencies.set_db_pool(db_pool)
+    except Exception as e:
+        print(f"⚠️  Database connection failed: {e}")
+        print("🔄 Running without database - some features will be limited")
+        db_pool = None
+
     # Initialize Redis connection
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-    redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-    
-    # Initialize database schema
-    await init_database()
-    
+    try:
+        redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+        # Test the connection (async ping)
+        await redis_client.ping()
+        print("✅ Redis connection established")
+        # Set up dependency injection
+        dependencies.set_redis_client(redis_client)
+    except Exception as e:
+        print(f"⚠️  Redis connection failed: {e}")
+        print("🔄 Running without Redis - some features will be limited")
+        redis_client = None
+
+    # Initialize database schema only if database is available
+    if db_pool:
+        try:
+            await init_database()
+            print("✅ Database schema initialized")
+        except Exception as e:
+            print(f"⚠️  Database schema initialization failed: {e}")
+
     print("🚀 CCM API started successfully")
-    
+
     yield
-    
+
     # Shutdown
     if db_pool:
         await db_pool.close()
@@ -88,14 +122,14 @@ async def init_database():
     """Initialize database schema"""
     if not db_pool:
         return
-        
+
     async with db_pool.acquire() as conn:
         # Create TimescaleDB extension if not exists
         try:
             await conn.execute("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;")
         except Exception as e:
             print(f"TimescaleDB extension not available: {e}")
-        
+
         # Create context events table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS context_events (
@@ -108,24 +142,24 @@ async def init_database():
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """)
-        
+
         # Create hypertable for time-series data (TimescaleDB)
         try:
             await conn.execute("""
-                SELECT create_hypertable('context_events', 'timestamp', 
+                SELECT create_hypertable('context_events', 'timestamp',
                     if_not_exists => TRUE, chunk_time_interval => INTERVAL '1 hour');
             """)
         except Exception as e:
             print(f"Hypertable creation skipped: {e}")
-        
+
         # Create indexes
         await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_context_events_session 
+            CREATE INDEX IF NOT EXISTS idx_context_events_session
             ON context_events (session_id, timestamp DESC);
         """)
-        
+
         await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_context_events_agent 
+            CREATE INDEX IF NOT EXISTS idx_context_events_agent
             ON context_events (agent, timestamp DESC);
         """)
 
@@ -137,32 +171,66 @@ app.include_router(gamification_router)
 from api.scrum_routes import router as scrum_router
 app.include_router(scrum_router, prefix="/api/v1")
 
+# Include AI Training routes (only if ML dependencies available)
+if ML_AVAILABLE:
+    try:
+        from api.ai_training_routes import router as ai_training_router
+        app.include_router(ai_training_router)
+        print("✅ AI training routes enabled")
+    except ImportError:
+        print("⚠️  AI training routes disabled - missing dependencies")
+else:
+    print("⚠️  AI training routes disabled - ML dependencies not available")
+
 # Initialize services
 Config.validate()
 
-# Initialize auto-training service
-auto_training_service = AutoTrainingService()
+# Health endpoint
+@app.get("/health", response_model=HealthResponse)
+async def health_check():
+    """Health check endpoint"""
+    return HealthResponse(
+        status="healthy",
+        timestamp=datetime.utcnow().isoformat(),
+        version="1.0.0",
+        features=["ccm", "ai", "git", "flow", "energy", "nvidia-nim"]
+    )
 
-@app.on_event("startup")
-async def startup_event():
-    """Load trained models on startup"""
-    auto_training_service.load_trained_models()
-    
-    # Start auto-training background task
-    import asyncio
-    asyncio.create_task(auto_training_task())
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": "PulseDev+ CCM API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
-async def auto_training_task():
-    """Background task to run auto-training periodically"""
-    while True:
-        try:
-            async with db_pool.acquire() as db:
-                await auto_training_service.auto_train(db)
-        except Exception as e:
-            print(f"Auto-training error: {e}")
-        
-        # Wait 1 hour before checking again
-        await asyncio.sleep(3600)
+# Initialize auto-training service (only if available)
+auto_training_service = AutoTrainingService() if ML_AVAILABLE and AutoTrainingService else None
+
+# Only add startup events if auto-training is available
+if auto_training_service:
+    @app.on_event("startup")
+    async def startup_event():
+        """Load trained models on startup"""
+        auto_training_service.load_trained_models()
+
+        # Start auto-training background task
+        import asyncio
+        asyncio.create_task(auto_training_task())
+
+    async def auto_training_task():
+        """Background task to run auto-training periodically"""
+        while True:
+            try:
+                async with db_pool.acquire() as db:
+                    await auto_training_service.auto_train(db)
+            except Exception as e:
+                print(f"Auto-training error: {e}")
+
+            # Wait 1 hour before checking again
+            await asyncio.sleep(3600)
 
 if __name__ == "__main__":
     import uvicorn

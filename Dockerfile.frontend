@@ -12,7 +12,8 @@ COPY components.json ./
 COPY postcss.config.js ./
 
 # Install dependencies
-RUN npm ci --only=production
+# it was npm ci --only=production but it was causing issues with the build
+RUN npm i
 
 # Copy source code
 COPY src/ ./src/

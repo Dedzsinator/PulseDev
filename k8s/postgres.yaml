@@ -14,16 +14,132 @@ metadata:
   name: postgres-init-scripts
   namespace: pulsedev-ccm
 data:
-  01-schema.sql: |
+  01-init.sql: |
     -- Create TimescaleDB extension
     CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
-    
+
     -- Enable necessary extensions
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
     CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-    
-    -- Initialize schema
-    \i /docker-entrypoint-initdb.d/schema.sql
+
+    -- Create enum types
+    CREATE TYPE event_type AS ENUM (
+        'code_change', 'file_access', 'test_run', 'build', 'debug',
+        'commit', 'branch_switch', 'merge', 'deployment',
+        'error', 'warning', 'info'
+    );
+
+    CREATE TYPE agent_type AS ENUM (
+        'vscode', 'intellij', 'vim', 'neovim', 'sublime',
+        'atom', 'emacs', 'other'
+    );
+
+    CREATE TYPE flow_state AS ENUM (
+        'in_flow', 'entering_flow', 'exiting_flow',
+        'interrupted', 'stuck'
+    );
+
+    -- Users table
+    CREATE TABLE IF NOT EXISTS users (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        username VARCHAR(255) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        settings JSONB DEFAULT '{}'::jsonb,
+        is_active BOOLEAN DEFAULT true
+    );
+
+    -- Projects table
+    CREATE TABLE IF NOT EXISTS projects (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        repository_url VARCHAR(500),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        settings JSONB DEFAULT '{}'::jsonb,
+        is_active BOOLEAN DEFAULT true
+    );
+
+    -- Context events table (main time-series data)
+    CREATE TABLE IF NOT EXISTS context_events (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        event_type event_type NOT NULL,
+        agent agent_type NOT NULL,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+        file_path VARCHAR(1000),
+        function_name VARCHAR(500),
+        line_number INTEGER,
+        duration_ms INTEGER,
+        metadata JSONB DEFAULT '{}'::jsonb,
+        git_branch VARCHAR(255),
+        git_commit_hash VARCHAR(40),
+        energy_score FLOAT,
+        flow_state flow_state,
+        context_hash VARCHAR(64),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Convert to hypertable
+    SELECT create_hypertable('context_events', 'timestamp', if_not_exists => TRUE);
+
+    -- Flow sessions table
+    CREATE TABLE IF NOT EXISTS flow_sessions (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+        start_time TIMESTAMPTZ NOT NULL,
+        end_time TIMESTAMPTZ,
+        duration_minutes INTEGER,
+        event_count INTEGER DEFAULT 0,
+        average_energy_score FLOAT,
+        peak_energy_score FLOAT,
+        flow_quality_score FLOAT,
+        interruption_count INTEGER DEFAULT 0,
+        metadata JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Gamification points table
+    CREATE TABLE IF NOT EXISTS gamification_points (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+        points INTEGER NOT NULL DEFAULT 0,
+        reason VARCHAR(255) NOT NULL,
+        event_id UUID REFERENCES context_events(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- System metrics table
+    CREATE TABLE IF NOT EXISTS system_metrics (
+        timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        metric_name VARCHAR(100) NOT NULL,
+        metric_value FLOAT NOT NULL,
+        labels JSONB DEFAULT '{}'::jsonb,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    -- Convert to hypertable
+    SELECT create_hypertable('system_metrics', 'timestamp', if_not_exists => TRUE);
+
+    -- Create indexes
+    CREATE INDEX IF NOT EXISTS idx_context_events_user_id ON context_events(user_id);
+    CREATE INDEX IF NOT EXISTS idx_context_events_timestamp ON context_events(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_context_events_event_type ON context_events(event_type);
+
+    -- Insert default admin user
+    INSERT INTO users (username, email, settings)
+    VALUES ('admin', 'admin@pulsedev.local', '{"role": "admin"}'::jsonb)
+    ON CONFLICT (username) DO NOTHING;
+
+    -- Log initialization
+    INSERT INTO system_metrics (metric_name, metric_value, labels)
+    VALUES ('database_initialization', 1, '{"status": "success"}'::jsonb);
 
 ---
 apiVersion: v1
@@ -55,38 +171,38 @@ spec:
         app: postgres
     spec:
       containers:
-      - name: postgres
-        image: timescale/timescaledb:latest-pg15
-        ports:
-        - containerPort: 5432
-        env:
-        - name: POSTGRES_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: pulsedev-secrets
-              key: postgres-password
-        envFrom:
-        - configMapRef:
-            name: postgres-config
-        volumeMounts:
-        - name: postgres-storage
-          mountPath: /var/lib/postgresql/data
-        - name: postgres-init-scripts
-          mountPath: /docker-entrypoint-initdb.d/
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "250m"
-          limits:
-            memory: "2Gi"
-            cpu: "1000m"
+        - name: postgres
+          image: timescale/timescaledb:latest-pg15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pulsedev-secrets
+                  key: postgres-password
+          envFrom:
+            - configMapRef:
+                name: postgres-config
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-init-scripts
+              mountPath: /docker-entrypoint-initdb.d/
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
       volumes:
-      - name: postgres-storage
-        persistentVolumeClaim:
-          claimName: postgres-pvc
-      - name: postgres-init-scripts
-        configMap:
-          name: postgres-init-scripts
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: postgres-init-scripts
+          configMap:
+            name: postgres-init-scripts
 
 ---
 apiVersion: v1
@@ -98,6 +214,6 @@ spec:
   selector:
     app: postgres
   ports:
-  - port: 5432
-    targetPort: 5432
+    - port: 5432
+      targetPort: 5432
   type: ClusterIP

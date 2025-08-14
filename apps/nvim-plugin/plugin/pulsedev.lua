@@ -13,5 +13,6 @@ if vim.fn.has('nvim-0.8') == 0 then
   return
 end
 
--- Load the main module
-require('pulsedev').setup()
+-- Don't auto-setup for lazy.nvim compatibility
+-- Let the user call setup() in their config
+-- require('pulsedev').setup()
