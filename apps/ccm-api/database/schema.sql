@@ -169,7 +169,7 @@ SELECT add_retention_policy('browser_activity', INTERVAL '30 days');
 
 -- Views for common queries
 CREATE VIEW recent_context AS
-SELECT 
+SELECT
     cn.*,
     cr.relationship_type,
     cr.weight as relationship_weight
@@ -179,7 +179,7 @@ WHERE cn.timestamp >= NOW() - INTERVAL '1 hour'
 ORDER BY cn.timestamp DESC;
 
 CREATE VIEW session_summary AS
-SELECT 
+SELECT
     session_id,
     COUNT(*) as total_events,
     COUNT(DISTINCT agent) as agents_used,
@@ -199,12 +199,12 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_code_relationships_updated_at 
-    BEFORE UPDATE ON code_relationships 
+CREATE TRIGGER update_code_relationships_updated_at
+    BEFORE UPDATE ON code_relationships
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_user_preferences_updated_at 
-    BEFORE UPDATE ON user_preferences 
+CREATE TRIGGER update_user_preferences_updated_at
+    BEFORE UPDATE ON user_preferences
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Gamification Tables
@@ -403,6 +403,83 @@ CREATE INDEX idx_tasks_story ON tasks(story_id, status);
 CREATE INDEX idx_retrospective_sprint ON retrospective_items(sprint_id, category);
 
 -- Gamification triggers
-CREATE TRIGGER update_user_profiles_updated_at 
-    BEFORE UPDATE ON user_profiles 
+CREATE TRIGGER update_user_profiles_updated_at
+    BEFORE UPDATE ON user_profiles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Team Collaboration Tables
+CREATE TABLE team_rooms (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    scrum_master_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT true,
+
+    -- Integration settings
+    slack_webhook_url TEXT,
+    slack_channel VARCHAR(100),
+    jira_project_key VARCHAR(50),
+    jira_base_url TEXT,
+
+    -- Room settings JSON
+    settings JSONB DEFAULT '{}',
+
+    CONSTRAINT team_rooms_name_check CHECK (length(name) >= 2)
+);
+
+CREATE TABLE team_invite_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id UUID REFERENCES team_rooms(id) ON DELETE CASCADE,
+    code VARCHAR(20) NOT NULL UNIQUE,
+    role VARCHAR(50) NOT NULL,
+    created_by VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    uses_remaining INTEGER,
+    is_active BOOLEAN DEFAULT true,
+
+    CONSTRAINT invite_code_role_check CHECK (role IN ('scrum_master', 'developer', 'product_owner', 'stakeholder'))
+);
+
+CREATE TABLE team_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id UUID REFERENCES team_rooms(id) ON DELETE CASCADE,
+    user_id VARCHAR(255) NOT NULL,
+    username VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    role VARCHAR(50) NOT NULL,
+    status VARCHAR(50) DEFAULT 'active',
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    last_active TIMESTAMPTZ,
+
+    -- Activity metrics
+    total_commits INTEGER DEFAULT 0,
+    total_xp INTEGER DEFAULT 0,
+    current_streak INTEGER DEFAULT 0,
+
+    UNIQUE(team_id, username),
+    CONSTRAINT member_role_check CHECK (role IN ('scrum_master', 'developer', 'product_owner', 'stakeholder')),
+    CONSTRAINT member_status_check CHECK (status IN ('pending', 'active', 'inactive', 'removed'))
+);
+
+CREATE TABLE team_activities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id UUID REFERENCES team_rooms(id) ON DELETE CASCADE,
+    member_id UUID REFERENCES team_members(id) ON DELETE CASCADE,
+    activity_type VARCHAR(100) NOT NULL,
+    description TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Add Jira integration to user stories
+ALTER TABLE user_stories ADD COLUMN jira_ticket_id VARCHAR(100);
+
+-- Team collaboration indexes
+CREATE INDEX idx_team_rooms_active ON team_rooms(is_active, created_at);
+CREATE INDEX idx_team_invite_codes_lookup ON team_invite_codes(code, is_active, expires_at);
+CREATE INDEX idx_team_members_team ON team_members(team_id, status, role);
+CREATE INDEX idx_team_members_user ON team_members(user_id, status);
+CREATE INDEX idx_team_activities_team_time ON team_activities(team_id, created_at DESC);
+CREATE INDEX idx_user_stories_jira ON user_stories(jira_ticket_id) WHERE jira_ticket_id IS NOT NULL;

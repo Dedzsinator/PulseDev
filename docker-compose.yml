@@ -39,6 +39,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - NVIDIA_NIM_API_KEY=${NVIDIA_NIM_API_KEY}
       - NVIDIA_NIM_BASE_URL=https://integrate.api.nvidia.com/v1
+      - AI_PROVIDER=nvidia_nim
       - DEFAULT_MODEL=nvidia/llama-3.1-nemotron-70b-instruct
       - AUTO_COMMIT_ENABLED=true
       - FLOW_DETECTION_ENABLED=true

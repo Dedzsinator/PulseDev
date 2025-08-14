@@ -59,77 +59,77 @@ export interface PairProgrammingResponse {
 // CCM Core API
 export const ccmAPI = {
   // Context Events
-  storeContextEvent: (event: CCMContextEvent) => 
+  storeContextEvent: (event: CCMContextEvent) =>
     api.post('/ccm/context/events', event),
-  
-  getTemporalContext: (sessionId: string, windowMinutes: number = 30) => 
+
+  getTemporalContext: (sessionId: string, windowMinutes: number = 30) =>
     api.get(`/ccm/context/temporal/${sessionId}?window_minutes=${windowMinutes}`),
-  
-  analyzePatterns: (sessionId: string) => 
+
+  analyzePatterns: (sessionId: string) =>
     api.get(`/ccm/context/patterns/${sessionId}`),
-  
-  wipeContextData: (sessionId: string, confirm: boolean = false) => 
+
+  wipeContextData: (sessionId: string, confirm: boolean = false) =>
     api.post('/ccm/context/wipe', { session_id: sessionId, confirm }),
-  
+
   // Flow Orchestrator
-  getFlowState: (sessionId: string) => 
+  getFlowState: (sessionId: string) =>
     api.get(`/ccm/flow/state/${sessionId}`),
-  
-  getFlowInsights: (sessionId: string, days: number = 7) => 
+
+  getFlowInsights: (sessionId: string, days: number = 7) =>
     api.get(`/ccm/flow/insights/${sessionId}?days=${days}`),
-  
-  suggestBreak: (sessionId: string) => 
+
+  suggestBreak: (sessionId: string) =>
     api.post(`/ccm/flow/break-suggestion/${sessionId}`),
-  
+
   // Pair Programming Ghost
-  getRubberDuckResponse: (sessionId: string) => 
+  getRubberDuckResponse: (sessionId: string) =>
     api.get(`/ccm/pair-programming/ghost/${sessionId}`),
-  
+
   // Auto Commit
-  suggestCommitMessage: (sessionId: string, repoPath: string) => 
+  suggestCommitMessage: (sessionId: string, repoPath: string) =>
     api.post(`/ccm/auto-commit/suggest/${sessionId}?repo_path=${encodeURIComponent(repoPath)}`),
-  
-  executeAutoCommit: (sessionId: string, repoPath: string) => 
+
+  executeAutoCommit: (sessionId: string, repoPath: string) =>
     api.post(`/ccm/auto-commit/execute/${sessionId}?repo_path=${encodeURIComponent(repoPath)}`),
-  
+
   // Code Analysis
-  analyzeChangeImpact: (sessionId: string, filePath: string, projectRoot: string) => 
+  analyzeChangeImpact: (sessionId: string, filePath: string, projectRoot: string) =>
     api.post(`/ccm/code-analysis/impact/${sessionId}?file_path=${encodeURIComponent(filePath)}&project_root=${encodeURIComponent(projectRoot)}`),
-  
-  storeRelationshipGraph: (sessionId: string, projectRoot: string) => 
+
+  storeRelationshipGraph: (sessionId: string, projectRoot: string) =>
     api.post(`/ccm/code-analysis/relationships/${sessionId}?project_root=${encodeURIComponent(projectRoot)}`),
-  
+
   // Integrations
-  postPRSummary: (sessionId: string, prData: Record<string, any>) => 
+  postPRSummary: (sessionId: string, prData: Record<string, any>) =>
     api.post(`/ccm/integrations/slack/pr-summary?session_id=${sessionId}`, prData),
-  
-  postDailyChangelog: (sessionId: string, date: string) => 
+
+  postDailyChangelog: (sessionId: string, date: string) =>
     api.post(`/ccm/integrations/slack/daily-changelog?session_id=${sessionId}&date=${date}`),
-  
-  postStuckAlert: (sessionId: string, stuckAnalysis: Record<string, any>) => 
+
+  postStuckAlert: (sessionId: string, stuckAnalysis: Record<string, any>) =>
     api.post(`/ccm/integrations/slack/stuck-alert?session_id=${sessionId}`, stuckAnalysis),
-  
+
   // Energy Analysis
-  getComprehensiveEnergy: (sessionId: string, timeRange: string = 'hour') => 
+  getComprehensiveEnergy: (sessionId: string, timeRange: string = 'hour') =>
     api.get(`/ccm/energy/comprehensive/${sessionId}?time_range=${timeRange}`),
-  
+
   // Gamification
-  getGamificationDashboard: (sessionId: string) => 
+  getGamificationDashboard: (sessionId: string) =>
     api.get(`/gamification/dashboard/${sessionId}`),
-  
-  awardXP: (sessionId: string, source: string, amount: number, metadata?: Record<string, any>) => 
+
+  awardXP: (sessionId: string, source: string, amount: number, metadata?: Record<string, any>) =>
     api.post(`/gamification/xp/${sessionId}`, { source, amount, metadata }),
-  
-  updateStreak: (sessionId: string) => 
+
+  updateStreak: (sessionId: string) =>
     api.post(`/gamification/streak/${sessionId}`),
-  
-  getUserProfile: (sessionId: string) => 
+
+  getUserProfile: (sessionId: string) =>
     api.get(`/gamification/profile/${sessionId}`),
-  
-  getAchievements: (sessionId: string) => 
+
+  getAchievements: (sessionId: string) =>
     api.get(`/gamification/achievements/${sessionId}`),
-  
-  getLeaderboard: (metric: string = 'xp', timeframe: string = 'weekly') => 
+
+  getLeaderboard: (metric: string = 'xp', timeframe: string = 'weekly') =>
     api.get(`/gamification/leaderboard?metric=${metric}&timeframe=${timeframe}`),
 
   // Merge Conflict Resolver
@@ -150,7 +150,7 @@ export const scrumAPI = {
   // Sprint Management
   getCurrentSprint: (teamId: string) =>
     api.get(`/scrum/sprint/current/${teamId}`),
-  
+
   createSprint: (sprintData: {
     team_id: string;
     name: string;
@@ -158,17 +158,17 @@ export const scrumAPI = {
     start_date: string;
     end_date: string;
   }) => api.post('/scrum/sprint', sprintData),
-  
+
   startSprint: (teamId: string, sprintId: string) =>
     api.post(`/scrum/sprint/${sprintId}/start`, { team_id: teamId }),
-  
+
   completeSprint: (teamId: string, sprintId: string) =>
     api.post(`/scrum/sprint/${sprintId}/complete`, { team_id: teamId }),
-  
+
   // User Story Management
   getBacklog: (teamId: string) =>
     api.get(`/scrum/backlog/${teamId}`),
-  
+
   createUserStory: (storyData: {
     team_id: string;
     title: string;
@@ -176,20 +176,20 @@ export const scrumAPI = {
     story_points: number;
     acceptance_criteria: string[];
   }) => api.post('/scrum/story', storyData),
-  
+
   updateUserStoryStatus: (teamId: string, storyId: string, status: string) =>
     api.patch(`/scrum/story/${storyId}/status`, { team_id: teamId, status }),
-  
+
   // Sprint Metrics
   getSprintMetrics: (teamId: string, sprintId: string) =>
     api.get(`/scrum/metrics/${teamId}/${sprintId}`),
-  
+
   getBurndownData: (teamId: string, sprintId: string) =>
     api.get(`/scrum/burndown/${teamId}/${sprintId}`),
-  
+
   getVelocityHistory: (teamId: string) =>
     api.get(`/scrum/velocity/${teamId}`),
-  
+
   // Retrospective
   createRetrospectiveItem: (itemData: {
     team_id: string;
@@ -197,9 +197,86 @@ export const scrumAPI = {
     category: 'went_well' | 'didnt_go_well' | 'action_items';
     content: string;
   }) => api.post('/scrum/retrospective', itemData),
-  
+
   getRetrospectiveItems: (teamId: string, sprintId: string) =>
     api.get(`/scrum/retrospective/${teamId}/${sprintId}`),
+};
+
+// Team Collaboration API
+export const teamAPI = {
+  // Team Rooms
+  createTeamRoom: (data: {
+    name: string;
+    description: string;
+    created_by: string;
+    settings: {
+      is_public: boolean;
+      allow_guests: boolean;
+      max_members: number;
+    };
+  }) => api.post('/teams/rooms', data),
+
+  getTeamRooms: (userId: string) => api.get(`/teams/rooms?user_id=${userId}`),
+
+  getTeamRoom: (teamId: string) => api.get(`/teams/rooms/${teamId}`),
+
+  updateTeamRoom: (teamId: string, data: any) => api.patch(`/teams/rooms/${teamId}`, data),
+
+  deleteTeamRoom: (teamId: string) => api.delete(`/teams/rooms/${teamId}`),
+
+  // Invite Codes
+  generateInviteCode: (teamId: string, data: {
+    role: string;
+    expires_at: string;
+    max_uses: number;
+    created_by: string;
+  }) => api.post(`/teams/rooms/${teamId}/invites`, data),
+
+  getInviteCodes: (teamId: string) => api.get(`/teams/rooms/${teamId}/invites`),
+
+  deactivateInviteCode: (teamId: string, inviteId: string) =>
+    api.patch(`/teams/rooms/${teamId}/invites/${inviteId}`, { is_active: false }),
+
+  joinWithCode: (data: {
+    invite_code: string;
+    user_id: string;
+    username: string;
+  }) => api.post('/teams/join', data),
+
+  // Members
+  getMembers: (teamId: string) => api.get(`/teams/rooms/${teamId}/members`),
+
+  updateMemberRole: (teamId: string, memberId: string, role: string) =>
+    api.patch(`/teams/rooms/${teamId}/members/${memberId}`, { role }),
+
+  removeMember: (teamId: string, memberId: string) =>
+    api.delete(`/teams/rooms/${teamId}/members/${memberId}`),
+
+  // Integrations
+  updateIntegrations: (teamId: string, data: {
+    slack_webhook_url?: string;
+    slack_channel?: string;
+    jira_project_key?: string;
+    jira_board_id?: string;
+  }) => api.patch(`/teams/rooms/${teamId}/integrations`, data),
+
+  testSlackIntegration: (teamId: string) =>
+    api.post(`/teams/rooms/${teamId}/integrations/slack/test`),
+
+  // Activity & Analytics
+  getActivity: (teamId: string, limit?: number) =>
+    api.get(`/teams/rooms/${teamId}/activity${limit ? `?limit=${limit}` : ''}`),
+
+  logActivity: (teamId: string, data: {
+    user_id: string;
+    username: string;
+    activity_type: string;
+    description: string;
+    metadata?: Record<string, any>;
+  }) => api.post(`/teams/rooms/${teamId}/activity`, data),
+
+  getAnalytics: (teamId: string, period?: string) =>
+    api.get(`/teams/rooms/${teamId}/analytics${period ? `?period=${period}` : ''}`),
 };
 
 export default api;

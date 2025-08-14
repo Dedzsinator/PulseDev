@@ -3,14 +3,14 @@ import { motion, useScroll, useTransform, useInView } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Brain, 
-  Zap, 
-  Trophy, 
-  Clock, 
-  GitBranch, 
-  Target, 
-  Shield, 
+import {
+  Brain,
+  Zap,
+  Trophy,
+  Clock,
+  GitBranch,
+  Target,
+  Shield,
   Bot,
   Code2,
   Gamepad2,
@@ -21,7 +21,8 @@ import {
   Sparkles,
   Cpu,
   Database,
-  Layers
+  Layers,
+  Users
 } from 'lucide-react';
 
 const AnimatedSection = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => {
@@ -48,9 +49,9 @@ const FloatingCard = ({ children, delay = 0 }: { children: React.ReactNode, dela
       whileInView={{ opacity: 1, scale: 1 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6, delay, ease: "easeOut" }}
-      whileHover={{ 
-        y: -10, 
-        transition: { duration: 0.3 } 
+      whileHover={{
+        y: -10,
+        transition: { duration: 0.3 }
       }}
       className="h-full"
     >
@@ -154,6 +155,14 @@ const EnhancedLanding = () => {
       gradient: "from-emerald-500/20 to-green-500/20"
     },
     {
+      icon: <Users className="h-8 w-8" />,
+      title: "Team Collaboration Rooms",
+      description: "Secure team spaces with role-based access and invite codes",
+      details: ["Team rooms", "Role-based permissions", "Slack & Jira integration", "Activity tracking"],
+      category: "Collaboration",
+      gradient: "from-violet-500/20 to-purple-500/20"
+    },
+    {
       icon: <Trophy className="h-8 w-8" />,
       title: "Unified Gamification",
       description: "XP, achievements, and streaks across all platforms",
@@ -214,7 +223,7 @@ const EnhancedLanding = () => {
   return (
     <div ref={containerRef} className="min-h-screen relative overflow-hidden">
       <ParallaxBackground />
-      
+
       {/* Hero Section */}
       <section className="relative px-6 py-32 text-center min-h-screen flex items-center justify-center">
         <motion.div
@@ -232,7 +241,7 @@ const EnhancedLanding = () => {
               🚀 Now with Unified Gamification & AI Auto-Training
             </Badge>
           </motion.div>
-          
+
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -243,7 +252,7 @@ const EnhancedLanding = () => {
               PulseDev+
             </span>
           </motion.h1>
-          
+
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -253,26 +262,29 @@ const EnhancedLanding = () => {
             The AI-powered developer companion that learns from your coding patterns,
             boosts productivity, and gamifies your development journey with continuous learning.
           </motion.p>
-          
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.6 }}
             className="flex flex-col items-center gap-6 sm:flex-row sm:justify-center"
           >
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               className="px-10 py-6 text-xl font-semibold bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all duration-300 group"
+              onClick={() => window.location.hash = '#/dashboard'}
             >
               <Gamepad2 className="mr-3 h-6 w-6 group-hover:rotate-12 transition-transform" />
               Start Your Journey
             </Button>
-            <Button 
-              variant="outline" 
-              size="lg" 
+            <Button
+              variant="outline"
+              size="lg"
               className="px-10 py-6 text-xl font-semibold border-2 hover:bg-primary/5 transition-all duration-300"
+              onClick={() => window.location.hash = '#/teams'}
             >
-              View Demo
+              <Users className="mr-3 h-6 w-6" />
+              Team Collaboration
             </Button>
           </motion.div>
         </motion.div>
@@ -353,7 +365,7 @@ const EnhancedLanding = () => {
               Every feature works together to create the ultimate developer experience with AI that learns and adapts
             </p>
           </motion.div>
-          
+
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {features.map((feature, index) => (
               <FloatingCard key={index} delay={index * 0.1}>
@@ -424,7 +436,7 @@ const EnhancedLanding = () => {
               Works seamlessly across all your favorite development tools
             </p>
           </motion.div>
-          
+
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
             {platforms.map((platform, index) => (
               <FloatingCard key={index} delay={index * 0.1}>
@@ -468,7 +480,7 @@ const EnhancedLanding = () => {
             <p className="mb-16 text-xl text-muted-foreground max-w-4xl mx-auto">
               Built on PostgreSQL + TimescaleDB + Redis with auto-training AI that learns during low usage periods
             </p>
-            
+
             <div className="grid gap-10 md:grid-cols-3">
               {architectureFeatures.map((feature, index) => (
                 <FloatingCard key={index} delay={index * 0.2}>
@@ -515,7 +527,7 @@ const EnhancedLanding = () => {
           >
             Join thousands of developers already using PulseDev+ to boost their productivity with AI that never stops learning
           </motion.p>
-          
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -523,22 +535,22 @@ const EnhancedLanding = () => {
             transition={{ delay: 0.4 }}
             className="flex flex-col items-center gap-6 sm:flex-row sm:justify-center"
           >
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               className="px-10 py-6 text-xl font-semibold bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all duration-300 group"
             >
               <Trophy className="mr-3 h-6 w-6 group-hover:scale-110 transition-transform" />
               Get Started Free
             </Button>
-            <Button 
-              variant="outline" 
-              size="lg" 
+            <Button
+              variant="outline"
+              size="lg"
               className="px-10 py-6 text-xl font-semibold border-2 hover:bg-primary/5 transition-all duration-300"
             >
               View Documentation
             </Button>
           </motion.div>
-          
+
           <motion.p
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
@@ -568,7 +580,7 @@ const EnhancedLanding = () => {
                 The AI-powered developer companion that learns with you
               </div>
             </div>
-            
+
             <div className="flex gap-8 text-muted-foreground">
               {['Documentation', 'GitHub', 'Discord', 'Blog'].map((link, index) => (
                 <motion.a
@@ -586,7 +598,7 @@ const EnhancedLanding = () => {
               ))}
             </div>
           </motion.div>
-          
+
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}

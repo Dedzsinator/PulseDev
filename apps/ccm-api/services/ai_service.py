@@ -4,15 +4,27 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import httpx
 
+# Optional OpenAI import
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    print("⚠️  OpenAI package not available - AI features will be limited")
+    openai = None
+    OPENAI_AVAILABLE = False
+
 from config import Config
 from models.events import ContextEvent, AIPromptRequest
 
 class AIService:
     def __init__(self):
         self.config = Config()
-        print(f"🤖 AI Service initialized with NVIDIA NIM")
-        print(f"   Model: {self.config.DEFAULT_MODEL}")
-        print(f"   Base URL: {self.config.NVIDIA_NIM_BASE_URL}")
+        self.openai_available = OPENAI_AVAILABLE
+
+        if OPENAI_AVAILABLE and self.config.AI_PROVIDER == "openai":
+            openai.api_key = self.config.OPENAI_API_KEY
+        elif not OPENAI_AVAILABLE:
+            print("⚠️  OpenAI not available - AI responses will use fallbacks")
 
     async def generate_context_prompt(self, events: List[ContextEvent], request: AIPromptRequest) -> str:
         """Generate a comprehensive context prompt from recent events"""
@@ -170,7 +182,7 @@ class AIService:
         return None
 
     async def generate_ai_suggestion(self, prompt: str, context_type: str = "debug") -> str:
-        """Generate AI suggestion using NVIDIA NIM"""
+        """Generate AI suggestion based on context"""
 
         system_prompts = {
             "debug": "You are a senior developer helping debug code issues. Analyze the context and provide specific, actionable suggestions.",
@@ -181,49 +193,66 @@ class AIService:
 
         system_prompt = system_prompts.get(context_type, system_prompts["debug"])
 
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    f"{self.config.NVIDIA_NIM_BASE_URL}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self.config.NVIDIA_NIM_API_KEY}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": self.config.DEFAULT_MODEL,
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": prompt}
-                        ],
-                        "max_tokens": 500,
-                        "temperature": 0.3,
-                        "stream": False
-                    }
+        if self.config.AI_PROVIDER == "openai":
+            try:
+                response = await openai.ChatCompletion.acreate(
+                    model=self.config.DEFAULT_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=500,
+                    temperature=0.3
                 )
+                return response.choices[0].message.content
+            except Exception as e:
+                return f"AI service error: {str(e)}"
 
-                if response.status_code != 200:
-                    error_detail = f"Status: {response.status_code}, Response: {response.text[:200]}"
-                    print(f"❌ NVIDIA NIM API error: {error_detail}")
-                    return f"AI service temporarily unavailable (API error: {response.status_code})"
+        elif self.config.AI_PROVIDER == "ollama":
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        f"{self.config.OLLAMA_BASE_URL}/api/generate",
+                        json={
+                            "model": self.config.DEFAULT_MODEL,
+                            "prompt": f"{system_prompt}\n\n{prompt}",
+                            "stream": False
+                        }
+                    )
+                    result = response.json()
+                    return result.get("response", "No response from Ollama")
+            except Exception as e:
+                return f"Ollama service error: {str(e)}"
 
-                result = response.json()
-                content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        elif self.config.AI_PROVIDER == "nvidia_nim":
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        f"{self.config.NVIDIA_NIM_BASE_URL}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.config.NVIDIA_NIM_API_KEY}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": self.config.DEFAULT_MODEL,
+                            "messages": [
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": prompt}
+                            ],
+                            "max_tokens": 500,
+                            "temperature": 0.3
+                        }
+                    )
 
-                if not content:
-                    print(f"❌ Empty response from NVIDIA NIM API")
-                    return "AI service returned empty response"
+                    if response.status_code != 200:
+                        return f"NVIDIA NIM API error: {response.status_code} - {response.text}"
 
-                return content.strip()
+                    result = response.json()
+                    return result.get("choices", [{}])[0].get("message", {}).get("content", "No response from NVIDIA NIM")
+            except Exception as e:
+                return f"NVIDIA NIM service error: {str(e)}"
 
-        except httpx.TimeoutException:
-            print("❌ NVIDIA NIM API request timed out")
-            return "AI service timed out - please try again"
-        except httpx.RequestError as e:
-            print(f"❌ NVIDIA NIM API request error: {str(e)}")
-            return "AI service connection error - please try again"
-        except Exception as e:
-            print(f"❌ Unexpected NVIDIA NIM API error: {str(e)}")
-            return f"AI service error: {str(e)}"
+        return "AI service not configured"
 
     async def generate_commit_message(self, git_diff: str, context_events: List[ContextEvent]) -> str:
         """Generate commit message from git diff and context"""
@@ -281,83 +310,3 @@ Rules:
         clean_name = ''.join(c if c.isalnum() or c in '-_/' else '-' for c in clean_name)
 
         return clean_name[:50]  # Limit length
-
-    async def analyze_productivity_patterns(self, events: List[ContextEvent]) -> Dict[str, Any]:
-        """Analyze productivity patterns using NVIDIA NIM"""
-
-        # Group events by hour
-        hourly_activity = {}
-        for event in events:
-            hour = event.timestamp.hour
-            hourly_activity.setdefault(hour, []).append(event)
-
-        # Calculate flow states
-        flow_periods = []
-        current_flow = None
-
-        for event in sorted(events, key=lambda e: e.timestamp):
-            if hasattr(event, 'flow_state') and event.flow_state:
-                if event.flow_state == "in_flow":
-                    if not current_flow:
-                        current_flow = {"start": event.timestamp, "events": []}
-                    current_flow["events"].append(event)
-                elif current_flow:
-                    current_flow["end"] = event.timestamp
-                    current_flow["duration"] = (current_flow["end"] - current_flow["start"]).total_seconds() / 60
-                    flow_periods.append(current_flow)
-                    current_flow = None
-
-        # Generate analysis prompt
-        prompt = f"""
-Analyze this developer's productivity patterns:
-
-## Activity Summary:
-- Total events: {len(events)}
-- Time span: {events[0].timestamp.strftime('%Y-%m-%d %H:%M')} to {events[-1].timestamp.strftime('%Y-%m-%d %H:%M')}
-- Flow periods detected: {len(flow_periods)}
-- Average flow duration: {sum(fp.get('duration', 0) for fp in flow_periods) / len(flow_periods) if flow_periods else 0:.1f} minutes
-
-## Hourly Distribution:
-{chr(10).join(f"- Hour {hour}: {len(events_list)} events" for hour, events_list in sorted(hourly_activity.items()))}
-
-Provide insights about:
-1. Peak productivity hours
-2. Flow state patterns
-3. Recommendations for improvement
-4. Warning signs or concerns
-"""
-
-        analysis = await self.generate_ai_suggestion(prompt, "flow")
-
-        return {
-            "analysis": analysis,
-            "metrics": {
-                "total_events": len(events),
-                "flow_periods": len(flow_periods),
-                "avg_flow_duration": sum(fp.get('duration', 0) for fp in flow_periods) / len(flow_periods) if flow_periods else 0,
-                "peak_hour": max(hourly_activity.keys(), key=lambda k: len(hourly_activity[k])) if hourly_activity else None,
-                "hourly_distribution": {str(k): len(v) for k, v in hourly_activity.items()}
-            }
-        }
-
-    async def health_check(self) -> Dict[str, Any]:
-        """Check AI service health"""
-        try:
-            test_prompt = "Respond with 'OK' if you can process this request."
-            response = await self.generate_ai_suggestion(test_prompt, "debug")
-
-            return {
-                "status": "healthy",
-                "provider": "nvidia_nim",
-                "model": self.config.DEFAULT_MODEL,
-                "base_url": self.config.NVIDIA_NIM_BASE_URL,
-                "test_response": response[:50] + "..." if len(response) > 50 else response
-            }
-        except Exception as e:
-            return {
-                "status": "unhealthy",
-                "provider": "nvidia_nim",
-                "model": self.config.DEFAULT_MODEL,
-                "base_url": self.config.NVIDIA_NIM_BASE_URL,
-                "error": str(e)
-            }

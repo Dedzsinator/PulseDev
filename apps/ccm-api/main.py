@@ -15,7 +15,6 @@ from config import Config
 from models.events import ContextEvent, EventType, Agent
 from api.routes import router
 from api.gamification_routes import router as gamification_router
-import dependencies
 
 # Try to import AI/ML services, with fallbacks for missing dependencies
 try:
@@ -52,8 +51,6 @@ async def lifespan(app: FastAPI):
     try:
         db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
         print("✅ Database connection established")
-        # Set up dependency injection
-        dependencies.set_db_pool(db_pool)
     except Exception as e:
         print(f"⚠️  Database connection failed: {e}")
         print("🔄 Running without database - some features will be limited")
@@ -63,11 +60,9 @@ async def lifespan(app: FastAPI):
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
     try:
         redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-        # Test the connection (async ping)
-        await redis_client.ping()
+        # Test the connection (sync ping for redis-py)
+        redis_client.ping()
         print("✅ Redis connection established")
-        # Set up dependency injection
-        dependencies.set_redis_client(redis_client)
     except Exception as e:
         print(f"⚠️  Redis connection failed: {e}")
         print("🔄 Running without Redis - some features will be limited")
@@ -171,6 +166,10 @@ app.include_router(gamification_router)
 from api.scrum_routes import router as scrum_router
 app.include_router(scrum_router, prefix="/api/v1")
 
+# Include Team Collaboration routes
+from api.team_routes import router as team_router
+app.include_router(team_router, prefix="/api/v1")
+
 # Include AI Training routes (only if ML dependencies available)
 if ML_AVAILABLE:
     try:
@@ -185,52 +184,29 @@ else:
 # Initialize services
 Config.validate()
 
-# Health endpoint
-@app.get("/health", response_model=HealthResponse)
-async def health_check():
-    """Health check endpoint"""
-    return HealthResponse(
-        status="healthy",
-        timestamp=datetime.utcnow().isoformat(),
-        version="1.0.0",
-        features=["ccm", "ai", "git", "flow", "energy", "nvidia-nim"]
-    )
-
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "message": "PulseDev+ CCM API",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "health": "/health"
-    }
-
 # Initialize auto-training service (only if available)
 auto_training_service = AutoTrainingService() if ML_AVAILABLE and AutoTrainingService else None
 
-# Only add startup events if auto-training is available
-if auto_training_service:
-    @app.on_event("startup")
-    async def startup_event():
-        """Load trained models on startup"""
-        auto_training_service.load_trained_models()
+@app.on_event("startup")
+async def startup_event():
+    """Load trained models on startup"""
+    auto_training_service.load_trained_models()
 
-        # Start auto-training background task
-        import asyncio
-        asyncio.create_task(auto_training_task())
+    # Start auto-training background task
+    import asyncio
+    asyncio.create_task(auto_training_task())
 
-    async def auto_training_task():
-        """Background task to run auto-training periodically"""
-        while True:
-            try:
-                async with db_pool.acquire() as db:
-                    await auto_training_service.auto_train(db)
-            except Exception as e:
-                print(f"Auto-training error: {e}")
+async def auto_training_task():
+    """Background task to run auto-training periodically"""
+    while True:
+        try:
+            async with db_pool.acquire() as db:
+                await auto_training_service.auto_train(db)
+        except Exception as e:
+            print(f"Auto-training error: {e}")
 
-            # Wait 1 hour before checking again
-            await asyncio.sleep(3600)
+        # Wait 1 hour before checking again
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
     import uvicorn

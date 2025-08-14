@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:PulseDev.Mobile.ViewModels"
+             x:Class="PulseDev.Mobile.Views.DashboardPage"
+             Title="PulseDev+ Dashboard"
+             x:DataType="vm:DashboardViewModel">
+
+    <ScrollView>
+        <StackLayout Padding="20"
+                Spacing="20">
+
+            <!-- Welcome Header -->
+            <Frame BackgroundColor="#1E40AF"
+                    HasShadow="True"
+                    CornerRadius="10">
+                <StackLayout>
+                    <Label Text="{Binding WelcomeMessage}"
+                           FontSize="24"
+                           FontAttributes="Bold"
+                           TextColor="White"
+                           HorizontalOptions="Center"/>
+                    <Label Text="Real-time team productivity insights"
+                           FontSize="16"
+                           TextColor="White"
+                           Opacity="0.9"
+                           HorizontalOptions="Center"/>
+                </StackLayout>
+            </Frame>
+
+            <!-- Loading Indicator -->
+            <ActivityIndicator IsVisible="{Binding IsLoading}"
+                    IsRunning="{Binding IsLoading}"
+                    Color="#1E40AF"/>
+
+            <!-- Team Selector -->
+            <Frame IsVisible="{Binding UserTeams.Count}"
+                    BackgroundColor="White"
+                    HasShadow="True"
+                    CornerRadius="8">
+                <StackLayout>
+                    <Label Text="Select Team"
+                            FontSize="18"
+                            FontAttributes="Bold"/>
+                    <CollectionView ItemsSource="{Binding UserTeams}">
+                        <CollectionView.ItemsLayout>
+                            <LinearItemsLayout Orientation="Horizontal"
+                                    ItemSpacing="10"/>
+                        </CollectionView.ItemsLayout>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <Frame BackgroundColor="#F3F4F6"
+                                        CornerRadius="20"
+                                        Padding="15,8"
+                                        HasShadow="False">
+                                    <Frame.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:DashboardViewModel}}, Path=SelectTeamCommand}"
+                                                              CommandParameter="{Binding .}"/>
+                                    </Frame.GestureRecognizers>
+                                    <Label Text="{Binding Name}"
+                                            FontSize="14"
+                                            TextColor="#374151"/>
+                                </Frame>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </StackLayout>
+            </Frame>
+
+            <!-- Analytics Cards -->
+            <Grid IsVisible="{Binding CurrentAnalytics, Converter={StaticResource IsNotNullConverter}}"
+                    RowDefinitions="Auto,Auto"
+                    ColumnDefinitions="*,*">
+
+                <!-- Active Members -->
+                <Frame Grid.Row="0"
+                        Grid.Column="0"
+                        BackgroundColor="#10B981"
+                        HasShadow="True"
+                        CornerRadius="10"
+                        Margin="5">
+                    <StackLayout>
+                        <Label Text="👥"
+                                FontSize="24"
+                                HorizontalOptions="Center"/>
+                        <Label Text="{Binding CurrentAnalytics.ActiveMembers}"
+                               FontSize="28"
+                               FontAttributes="Bold"
+                               TextColor="White"
+                               HorizontalOptions="Center"/>
+                        <Label Text="Active Members"
+                               FontSize="12"
+                               TextColor="White"
+                               Opacity="0.9"
+                               HorizontalOptions="Center"/>
+                    </StackLayout>
+                </Frame>
+
+                <!-- Total Commits -->
+                <Frame Grid.Row="0"
+                        Grid.Column="1"
+                        BackgroundColor="#F59E0B"
+                        HasShadow="True"
+                        CornerRadius="10"
+                        Margin="5">
+                    <StackLayout>
+                        <Label Text="🔧"
+                                FontSize="24"
+                                HorizontalOptions="Center"/>
+                        <Label Text="{Binding CurrentAnalytics.TotalCommits}"
+                               FontSize="28"
+                               FontAttributes="Bold"
+                               TextColor="White"
+                               HorizontalOptions="Center"/>
+                        <Label Text="Commits"
+                               FontSize="12"
+                               TextColor="White"
+                               Opacity="0.9"
+                               HorizontalOptions="Center"/>
+                    </StackLayout>
+                </Frame>
+
+                <!-- Sprint Progress -->
+                <Frame Grid.Row="1"
+                        Grid.Column="0"
+                        BackgroundColor="#8B5CF6"
+                        HasShadow="True"
+                        CornerRadius="10"
+                        Margin="5">
+                    <StackLayout>
+                        <Label Text="🏁"
+                                FontSize="24"
+                                HorizontalOptions="Center"/>
+                        <Label Text="{Binding CurrentAnalytics.SprintCompletionRate, StringFormat='{0:F0}%'}"
+                               FontSize="28"
+                               FontAttributes="Bold"
+                               TextColor="White"
+                               HorizontalOptions="Center"/>
+                        <Label Text="Sprint Done"
+                               FontSize="12"
+                               TextColor="White"
+                               Opacity="0.9"
+                               HorizontalOptions="Center"/>
+                    </StackLayout>
+                </Frame>
+
+                <!-- Flow Sessions -->
+                <Frame Grid.Row="1"
+                        Grid.Column="1"
+                        BackgroundColor="#EF4444"
+                        HasShadow="True"
+                        CornerRadius="10"
+                        Margin="5">
+                    <StackLayout>
+                        <Label Text="⚡"
+                                FontSize="24"
+                                HorizontalOptions="Center"/>
+                        <Label Text="{Binding CurrentAnalytics.TotalFlowSessions}"
+                               FontSize="28"
+                               FontAttributes="Bold"
+                               TextColor="White"
+                               HorizontalOptions="Center"/>
+                        <Label Text="Flow Sessions"
+                               FontSize="12"
+                               TextColor="White"
+                               Opacity="0.9"
+                               HorizontalOptions="Center"/>
+                    </StackLayout>
+                </Frame>
+            </Grid>
+
+            <!-- Top Performers -->
+            <Frame IsVisible="{Binding CurrentAnalytics.TopPerformers, Converter={StaticResource IsNotNullConverter}}"
+                   BackgroundColor="White"
+                    HasShadow="True"
+                    CornerRadius="8">
+                <StackLayout>
+                    <Label Text="🏆 Top Performers"
+                            FontSize="18"
+                            FontAttributes="Bold"/>
+                    <Grid RowDefinitions="Auto,Auto,Auto"
+                            ColumnDefinitions="*,*">
+                        <Label Grid.Row="0"
+                                Grid.Column="0"
+                                Text="🥇 Top Committer:"
+                                FontSize="14"
+                                TextColor="#374151"/>
+                        <Label Grid.Row="0"
+                                Grid.Column="1"
+                                Text="{Binding CurrentAnalytics.TopPerformers.TopCommitter}"
+                                FontSize="14"
+                                FontAttributes="Bold"/>
+
+                        <Label Grid.Row="1"
+                                Grid.Column="0"
+                                Text="⚡ XP Leader:"
+                                FontSize="14"
+                                TextColor="#374151"/>
+                        <Label Grid.Row="1"
+                                Grid.Column="1"
+                                Text="{Binding CurrentAnalytics.TopPerformers.TopXpEarner}"
+                                FontSize="14"
+                                FontAttributes="Bold"/>
+
+                        <Label Grid.Row="2"
+                                Grid.Column="0"
+                                Text="🔥 Longest Streak:"
+                                FontSize="14"
+                                TextColor="#374151"/>
+                        <Label Grid.Row="2"
+                                Grid.Column="1"
+                                Text="{Binding CurrentAnalytics.TopPerformers.LongestStreak}"
+                                FontSize="14"
+                                FontAttributes="Bold"/>
+                    </Grid>
+                </StackLayout>
+            </Frame>
+
+            <!-- Recent Activity -->
+            <Frame BackgroundColor="White"
+                    HasShadow="True"
+                    CornerRadius="8">
+                <StackLayout>
+                    <Label Text="📊 Recent Activity"
+                            FontSize="18"
+                            FontAttributes="Bold"/>
+                    <CollectionView ItemsSource="{Binding RecentActivities}"
+                            MaximumHeightRequest="300">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Padding="0,8"
+                                        ColumnDefinitions="Auto,*,Auto">
+                                    <Label Grid.Column="0"
+                                            Text="{Binding ActivityIcon}"
+                                            FontSize="16"
+                                            VerticalOptions="Center"/>
+                                    <StackLayout Grid.Column="1"
+                                            Padding="10,0">
+                                        <Label Text="{Binding Description}"
+                                                FontSize="14"
+                                                FontAttributes="Bold"/>
+                                        <Label Text="{Binding MemberUsername}"
+                                                FontSize="12"
+                                                TextColor="#6B7280"/>
+                                    </StackLayout>
+                                    <Label Grid.Column="2"
+                                            Text="{Binding TimeAgo}"
+                                            FontSize="12"
+                                            TextColor="#9CA3AF"
+                                            VerticalOptions="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </StackLayout>
+            </Frame>
+
+            <!-- Period Selector -->
+            <Frame BackgroundColor="White"
+                    HasShadow="True"
+                    CornerRadius="8">
+                <StackLayout>
+                    <Label Text="📅 Time Period"
+                            FontSize="16"
+                            FontAttributes="Bold"/>
+                    <StackLayout Orientation="Horizontal"
+                            HorizontalOptions="Center"
+                            Spacing="10">
+                        <Button Text="Today"
+                                BackgroundColor="{Binding SelectedPeriod, Converter={StaticResource PeriodToBgConverter}, ConverterParameter='today'}"
+                                Command="{Binding ChangePeriodCommand}"
+                                CommandParameter="today"
+                                CornerRadius="20"/>
+                        <Button Text="Week"
+                                BackgroundColor="{Binding SelectedPeriod, Converter={StaticResource PeriodToBgConverter}, ConverterParameter='week'}"
+                                Command="{Binding ChangePeriodCommand}"
+                                CommandParameter="week"
+                                CornerRadius="20"/>
+                        <Button Text="Month"
+                                BackgroundColor="{Binding SelectedPeriod, Converter={StaticResource PeriodToBgConverter}, ConverterParameter='month'}"
+                                Command="{Binding ChangePeriodCommand}"
+                                CommandParameter="month"
+                                CornerRadius="20"/>
+                    </StackLayout>
+                </StackLayout>
+            </Frame>
+
+            <!-- Refresh Button -->
+            <Button Text="🔄 Refresh"
+                    Command="{Binding RefreshCommand}"
+                    BackgroundColor="#1E40AF"
+                    TextColor="White"
+                    CornerRadius="8"
+                    FontSize="16"/>
+
+        </StackLayout>
+    </ScrollView>
+</ContentPage>

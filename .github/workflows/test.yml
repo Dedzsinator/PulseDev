@@ -2,45 +2,45 @@ name: Test Suite
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: none #[ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: none # [ main ]
 
 jobs:
   frontend-tests:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run linting
-      run: npm run lint
-    
-    - name: Run unit tests
-      run: npm run test:coverage
-    
-    - name: Build application
-      run: npm run build
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage/lcov.info
-        flags: frontend
-        name: frontend-coverage
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm run test:coverage
+
+      - name: Build application
+        run: npm run build
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
 
   backend-tests:
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: timescale/timescaledb:latest-pg14
@@ -55,7 +55,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-      
+
       redis:
         image: redis:7-alpine
         options: >-
@@ -65,40 +65,40 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install backend dependencies
-      run: |
-        cd apps/ccm-api
-        pip install -r requirements.txt
-        pip install -r ../../tests/backend/requirements.txt
-    
-    - name: Run backend tests
-      env:
-        DATABASE_URL: postgresql://test:test@localhost:5432/test_pulsedev
-        REDIS_URL: redis://localhost:6379/0
-        ENCRYPTION_KEY: test-key-32-bytes-long-for-testing
-      run: |
-        cd tests/backend
-        pytest -v --cov=apps.ccm_api --cov-report=xml
-    
-    - name: Upload backend coverage
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./tests/backend/coverage.xml
-        flags: backend
-        name: backend-coverage
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: |
+          cd apps/ccm-api
+          pip install -r requirements.txt
+          pip install -r ../../tests/backend/requirements.txt
+
+      - name: Run backend tests
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_pulsedev
+          REDIS_URL: redis://localhost:6379/0
+          ENCRYPTION_KEY: test-key-32-bytes-long-for-testing
+        run: |
+          cd tests/backend
+          pytest -v --cov=apps.ccm_api --cov-report=xml
+
+      - name: Upload backend coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./tests/backend/coverage.xml
+          flags: backend
+          name: backend-coverage
 
   e2e-tests:
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: timescale/timescaledb:latest-pg14
@@ -113,7 +113,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-      
+
       redis:
         image: redis:7-alpine
         options: >-
@@ -123,82 +123,82 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install dependencies
-      run: |
-        npm ci
-        cd apps/ccm-api
-        pip install -r requirements.txt
-    
-    - name: Build frontend
-      run: npm run build
-    
-    - name: Start backend server
-      env:
-        DATABASE_URL: postgresql://test:test@localhost:5432/test_pulsedev
-        REDIS_URL: redis://localhost:6379/0
-        ENCRYPTION_KEY: test-key-32-bytes-long-for-testing
-      run: |
-        cd apps/ccm-api
-        python main.py &
-        sleep 10
-    
-    - name: Start frontend server
-      run: |
-        npm run preview &
-        sleep 5
-    
-    - name: Run Cypress tests
-      uses: cypress-io/github-action@v6
-      with:
-        wait-on: 'http://localhost:5173, http://localhost:8000'
-        wait-on-timeout: 120
-        record: false
-        browser: chrome
-    
-    - name: Upload E2E screenshots
-      uses: actions/upload-artifact@v3
-      if: failure()
-      with:
-        name: cypress-screenshots
-        path: cypress/screenshots
-    
-    - name: Upload E2E videos
-      uses: actions/upload-artifact@v3
-      if: failure()
-      with:
-        name: cypress-videos
-        path: cypress/videos
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd apps/ccm-api
+          pip install -r requirements.txt
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Start backend server
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_pulsedev
+          REDIS_URL: redis://localhost:6379/0
+          ENCRYPTION_KEY: test-key-32-bytes-long-for-testing
+        run: |
+          cd apps/ccm-api
+          python main.py &
+          sleep 10
+
+      - name: Start frontend server
+        run: |
+          npm run preview &
+          sleep 5
+
+      - name: Run Cypress tests
+        uses: cypress-io/github-action@v6
+        with:
+          wait-on: "http://localhost:5173, http://localhost:8000"
+          wait-on-timeout: 120
+          record: false
+          browser: chrome
+
+      - name: Upload E2E screenshots
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: cypress-screenshots
+          path: cypress/screenshots
+
+      - name: Upload E2E videos
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: cypress-videos
+          path: cypress/videos
 
   security-scan:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-    
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: 'trivy-results.sarif'
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: "trivy-results.sarif"

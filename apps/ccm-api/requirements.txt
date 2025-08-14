@@ -18,7 +18,6 @@ websockets==15.0.1
 aiofiles==24.1.0
 jinja2==3.1.6
 python-dotenv==1.1.1
-httpx==0.27.0
 
 # Testing
 pytest==8.3.4
@@ -33,5 +32,16 @@ pandas>=2.0.0
 requests==2.32.4
 tqdm==4.67.1
 
-# AI Services - NVIDIA NIM only (uses httpx for API calls)
-# No additional AI packages needed - using httpx already included above
+# Skip problematic ML dependencies - use fallbacks instead
+# scikit-learn - will use synthetic data fallbacks
+# matplotlib==3.8.2 - not critical for API
+# seaborn==0.13.0 - not critical for API
+
+# Dataset Integration (optional)
+# kaggle==1.6.14
+# datasets==2.17.0
+# huggingface-hub==0.21.4
+# transformers==4.39.3
+
+# AI Services - NVIDIA NIM uses httpx directly (already included above)
+anthropic==0.39.0

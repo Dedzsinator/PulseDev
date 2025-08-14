@@ -14,7 +14,6 @@ from services.ai_service import AIService
 from services.git_service import GitService
 from services.flow_service import FlowService
 from services.energy_service import EnergyService
-from dependencies import get_db, get_redis
 
 # Initialize services
 ai_service = AIService()
@@ -25,57 +24,48 @@ energy_service = EnergyService()
 # Create router
 router = APIRouter()
 
+# Dependency functions (same as main.py)
+async def get_db():
+    # This will be injected from main.py
+    pass
+
+async def get_redis():
+    # This will be injected from main.py
+    pass
+
 @router.post("/context/events")
 async def create_context_event(
     event: ContextEvent,
     background_tasks: BackgroundTasks,
-    db: asyncpg.Connection = Depends(get_db)
+    db: asyncpg.Connection = Depends(get_db),
+    redis_conn: redis.Redis = Depends(get_redis)
 ):
     """Store a context event and trigger analysis"""
     try:
-        print(f"Debug: Received event for session {event.sessionId}")
-
-        # Store in PostgreSQL
+        # Store in PostgreSQL (same as before)
         event_id = str(uuid.uuid4())
-        print(f"Debug: Storing event {event_id} in database")
-
         await db.execute("""
             INSERT INTO context_events (id, session_id, agent, type, payload, timestamp)
             VALUES ($1, $2, $3, $4, $5, $6)
         """, event_id, event.sessionId, event.agent.value, event.type.value,
             json.dumps(event.payload), datetime.fromisoformat(event.timestamp.replace('Z', '+00:00')))
 
-        print(f"Debug: Database insert successful")
-
         # Cache in Redis
-        try:
-            from dependencies import redis_client
-            if redis_client is not None:
-                cache_key = f"session:{event.sessionId}:recent"
-                event_data = {
-                    "id": event_id,
-                    "agent": event.agent.value,
-                    "type": event.type.value,
-                    "payload": event.payload,
-                    "timestamp": event.timestamp
-                }
+        cache_key = f"session:{event.sessionId}:recent"
+        event_data = {
+            "id": event_id,
+            "agent": event.agent.value,
+            "type": event.type.value,
+            "payload": event.payload,
+            "timestamp": event.timestamp
+        }
 
-                await redis_client.lpush(cache_key, json.dumps(event_data))
-                await redis_client.ltrim(cache_key, 0, 99)
-                await redis_client.expire(cache_key, 86400)
-                print("Debug: Redis operations successful")
-            else:
-                print("Debug: Redis not available, skipping cache")
-        except Exception as redis_error:
-            print(f"Debug: Redis error (non-fatal): {redis_error}")
+        await redis_conn.lpush(cache_key, json.dumps(event_data))
+        await redis_conn.ltrim(cache_key, 0, 99)
+        await redis_conn.expire(cache_key, 86400)
 
         # Background analysis
-        try:
-            from dependencies import redis_client as redis_client_for_background
-            background_tasks.add_task(analyze_event_context, event.sessionId, event_id, db, redis_client_for_background)
-            print("Debug: Background task started")
-        except Exception as bg_error:
-            print(f"Debug: Background task error (non-fatal): {bg_error}")
+        background_tasks.add_task(analyze_event_context, event.sessionId, event_id, db, redis_conn)
 
         return {"status": "success", "event_id": event_id}
 
@@ -101,41 +91,17 @@ async def generate_ai_prompt(
             LIMIT 1000
         """
 
-        print(f"Debug AI: Executing query for session {request.session_id}")
         rows = await db.fetch(query, request.session_id, since_time)
-        print(f"Debug AI: Found {len(rows)} rows")
 
         events = []
         for row in rows:
-            # Handle JSONB payload from PostgreSQL - this is the key fix!
-            payload = row["payload"]
-            print(f"Debug AI: Raw payload: {payload}, type: {type(payload)}")
-
-            # The issue: Pydantic validation happens BEFORE we can process the payload
-            # We need to create the ContextEvent with raw data, not with parsed payload
-            try:
-                # Create a dictionary that matches ContextEvent structure
-                event_data = {
-                    "sessionId": row["session_id"],
-                    "agent": row["agent"],  # Keep as string, let Pydantic convert
-                    "type": row["type"],    # Keep as string, let Pydantic convert
-                    "payload": payload if isinstance(payload, dict) else json.loads(payload) if isinstance(payload, str) else {},
-                    "timestamp": row["timestamp"].isoformat()
-                }
-
-                print(f"Debug AI: Event data before validation: {event_data}")
-
-                # Let Pydantic handle the validation with proper data types
-                event = ContextEvent(**event_data)
-                events.append(event)
-                print(f"Debug AI: Successfully created ContextEvent")
-
-            except Exception as parse_error:
-                print(f"Debug AI: Error parsing event: {parse_error}")
-                # Skip problematic events instead of failing completely
-                continue
-
-        print(f"Debug AI: Successfully created {len(events)} events")
+            events.append(ContextEvent(
+                sessionId=row["session_id"],
+                agent=Agent(row["agent"]),
+                type=EventType(row["type"]),
+                payload=row["payload"],
+                timestamp=row["timestamp"].isoformat()
+            ))
 
         # Generate prompt
         prompt = await ai_service.generate_context_prompt(events, request)
@@ -177,28 +143,24 @@ async def auto_commit(
         if not status["is_dirty"]:
             return {"message": "No changes to commit"}
 
-        # Get git diff for commit message generation
-        diff = await git_service.get_diff()
+        # Get diff for AI analysis
+        diff = await git_service.get_diff(cached=auto_stage)
 
-        # Generate commit message if not provided
-        if not custom_message:
-            # Get context events for commit message generation
-            context_events = []  # Could fetch from DB if needed
-            custom_message = await ai_service.generate_commit_message(diff, context_events)
-
-        # Auto-stage files if requested
-        if auto_stage:
-            await git_service.stage_all()
+        if custom_message:
+            commit_message = custom_message
+        else:
+            # Get recent context for commit message generation
+            # This would get events from the database
+            context_events = []  # Simplified for now
+            commit_message = await ai_service.generate_commit_message(diff, context_events)
 
         # Create commit
-        result = await git_service.create_commit(custom_message)
+        result = await git_service.create_commit(
+            message=commit_message,
+            auto_stage=auto_stage
+        )
 
-        return {
-            "status": "success",
-            "commit_hash": result.get("hash"),
-            "message": custom_message,
-            "files_changed": status["files"]
-        }
+        return result
 
     except Exception as e:
         print(f"Error in auto-commit: {e}")
@@ -207,12 +169,7 @@ async def auto_commit(
 @router.get("/git/status")
 async def get_git_status():
     """Get current git status"""
-    try:
-        status = await git_service.get_current_status()
-        return status
-    except Exception as e:
-        print(f"Error getting git status: {e}")
-        raise HTTPException(status_code=500, detail=f"Git status failed: {str(e)}")
+    return await git_service.get_current_status()
 
 @router.post("/git/suggest-branch")
 async def suggest_branch(
@@ -221,7 +178,7 @@ async def suggest_branch(
 ):
     """Suggest branch name based on context"""
     try:
-        # Get recent context events
+        # Get recent events
         since_time = datetime.utcnow() - timedelta(hours=1)
 
         query = """
@@ -236,28 +193,20 @@ async def suggest_branch(
 
         events = []
         for row in rows:
-            payload = row["payload"]
-            if isinstance(payload, str):
-                try:
-                    payload = json.loads(payload)
-                except json.JSONDecodeError:
-                    payload = {"raw": payload}
-
             events.append(ContextEvent(
                 sessionId=row["session_id"],
                 agent=Agent(row["agent"]),
                 type=EventType(row["type"]),
-                payload=payload or {},
+                payload=row["payload"],
                 timestamp=row["timestamp"].isoformat()
             ))
 
-        # Generate branch suggestion
         branch_name = await ai_service.suggest_branch_name(events)
 
         return {
             "suggested_branch": branch_name,
-            "confidence": 0.8,  # Could be calculated based on context quality
-            "reasoning": f"Based on {len(events)} recent context events"
+            "session_id": session_id,
+            "confidence": 0.8  # AI confidence score
         }
 
     except Exception as e:
@@ -271,7 +220,7 @@ async def get_flow_status(
 ):
     """Get current flow status"""
     try:
-        # Get recent events for flow analysis
+        # Get recent events
         since_time = datetime.utcnow() - timedelta(minutes=30)
 
         query = """
@@ -279,32 +228,29 @@ async def get_flow_status(
             FROM context_events
             WHERE session_id = $1 AND timestamp > $2
             ORDER BY timestamp DESC
-            LIMIT 200
         """
 
         rows = await db.fetch(query, session_id, since_time)
 
         events = []
         for row in rows:
-            payload = row["payload"]
-            if isinstance(payload, str):
-                try:
-                    payload = json.loads(payload)
-                except json.JSONDecodeError:
-                    payload = {"raw": payload}
-
             events.append(ContextEvent(
                 sessionId=row["session_id"],
                 agent=Agent(row["agent"]),
                 type=EventType(row["type"]),
-                payload=payload or {},
+                payload=row["payload"],
                 timestamp=row["timestamp"].isoformat()
             ))
 
-        # Detect flow state
         flow_state = await flow_service.detect_flow_state(events, session_id)
+        flow_insights = await flow_service.get_flow_insights(session_id)
+        break_suggestion = await flow_service.suggest_break(session_id, events)
 
-        return flow_state
+        return {
+            "flow_state": flow_state,
+            "insights": flow_insights,
+            "break_suggestion": break_suggestion
+        }
 
     except Exception as e:
         print(f"Error getting flow status: {e}")
@@ -313,18 +259,13 @@ async def get_flow_status(
 @router.get("/energy/score/{session_id}")
 async def get_energy_score(
     session_id: str,
-    time_range: str = "day",
+    hours: int = 8,
     db: asyncpg.Connection = Depends(get_db)
 ):
     """Get energy score for session"""
     try:
-        # Calculate time window based on range
-        if time_range == "hour":
-            since_time = datetime.utcnow() - timedelta(hours=1)
-        elif time_range == "day":
-            since_time = datetime.utcnow() - timedelta(days=1)
-        else:  # week
-            since_time = datetime.utcnow() - timedelta(weeks=1)
+        # Get events for the time window
+        since_time = datetime.utcnow() - timedelta(hours=hours)
 
         query = """
             SELECT session_id, agent, type, payload, timestamp
@@ -337,52 +278,70 @@ async def get_energy_score(
 
         events = []
         for row in rows:
-            payload = row["payload"]
-            if isinstance(payload, str):
-                try:
-                    payload = json.loads(payload)
-                except json.JSONDecodeError:
-                    payload = {"raw": payload}
-
             events.append(ContextEvent(
                 sessionId=row["session_id"],
                 agent=Agent(row["agent"]),
                 type=EventType(row["type"]),
-                payload=payload or {},
+                payload=row["payload"],
                 timestamp=row["timestamp"].isoformat()
             ))
 
-        # Calculate energy score
-        energy_data = await energy_service.calculate_energy_score(events, session_id)
+        energy_score = await energy_service.calculate_energy_score(events, hours)
+        energy_trends = await energy_service.get_energy_trends(session_id)
 
-        return energy_data
+        return {
+            "energy_score": energy_score,
+            "trends": energy_trends,
+            "session_id": session_id
+        }
 
     except Exception as e:
         print(f"Error calculating energy score: {e}")
-        raise HTTPException(status_code=500, detail=f"Energy score failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Energy score calculation failed: {str(e)}")
 
-@router.get("/health")
-async def health_check(db: asyncpg.Connection = Depends(get_db)):
-    """Health check endpoint"""
+@router.get("/analytics/dashboard/{session_id}")
+async def get_dashboard_data(
+    session_id: str,
+    days: int = 7,
+    db: asyncpg.Connection = Depends(get_db)
+):
+    """Get comprehensive dashboard data"""
     try:
-        # Test database connection
-        await db.execute("SELECT 1")
+        # This would aggregate data for dashboard
+        since_time = datetime.utcnow() - timedelta(days=days)
 
-        # Test AI service
-        ai_health = await ai_service.health_check()
+        # Get event counts by type
+        query = """
+            SELECT agent, type, COUNT(*) as count
+            FROM context_events
+            WHERE session_id = $1 AND timestamp > $2
+            GROUP BY agent, type
+            ORDER BY count DESC
+        """
+
+        rows = await db.fetch(query, session_id, since_time)
+
+        event_counts = {}
+        for row in rows:
+            event_counts[f"{row['agent']}.{row['type']}"] = row['count']
+
+        # Get recent git activity
+        git_commits = await git_service.get_recent_commits(count=20)
 
         return {
-            "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
-            "database": "connected",
-            "ai_service": ai_health
+            "session_id": session_id,
+            "time_window_days": days,
+            "event_counts": event_counts,
+            "recent_commits": git_commits,
+            "generated_at": datetime.utcnow().isoformat()
         }
-    except Exception as e:
-        print(f"Health check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
-# Background task function
-async def analyze_event_context(session_id: str, event_id: str, db: asyncpg.Connection, redis_conn):
+    except Exception as e:
+        print(f"Error getting dashboard data: {e}")
+        raise HTTPException(status_code=500, detail=f"Dashboard data failed: {str(e)}")
+
+# Background task functions
+async def analyze_event_context(session_id: str, event_id: str, db: asyncpg.Connection, redis_conn: redis.Redis):
     """Background analysis of events for triggers"""
     try:
         # Get recent events for analysis
@@ -400,50 +359,31 @@ async def analyze_event_context(session_id: str, event_id: str, db: asyncpg.Conn
 
         events = []
         for row in rows:
-            # Handle JSONB payload from PostgreSQL
-            payload = row["payload"]
-
-            # asyncpg returns JSONB as dict directly, but handle edge cases
-            if isinstance(payload, str):
-                try:
-                    payload = json.loads(payload)
-                except json.JSONDecodeError:
-                    payload = {"raw": payload}
-            elif payload is None:
-                payload = {}
-
             events.append(ContextEvent(
                 sessionId=row["session_id"],
                 agent=Agent(row["agent"]),
                 type=EventType(row["type"]),
-                payload=payload,
+                payload=row["payload"],
                 timestamp=row["timestamp"].isoformat()
             ))
 
         # Check for stuck state
         stuck_state = await ai_service.detect_stuck_state(events)
-        if stuck_state and redis_conn is not None:
-            # Cache stuck state alert only if Redis is available
-            try:
-                await redis_conn.setex(
-                    f"stuck_state:{session_id}",
-                    3600,  # 1 hour expiry
-                    json.dumps(stuck_state)
-                )
-            except Exception as redis_error:
-                print(f"Redis error in background task (non-fatal): {redis_error}")
+        if stuck_state:
+            # Cache stuck state alert
+            await redis_conn.setex(
+                f"stuck_state:{session_id}",
+                3600,  # 1 hour expiry
+                json.dumps(stuck_state)
+            )
 
         # Check flow state
         flow_state = await flow_service.detect_flow_state(events, session_id)
-        if redis_conn is not None:
-            try:
-                await redis_conn.setex(
-                    f"flow_state:{session_id}",
-                    1800,  # 30 minutes expiry
-                    json.dumps(flow_state)
-                )
-            except Exception as redis_error:
-                print(f"Redis error in background task (non-fatal): {redis_error}")
+        await redis_conn.setex(
+            f"flow_state:{session_id}",
+            300,  # 5 minute expiry
+            json.dumps(flow_state)
+        )
 
     except Exception as e:
-        print(f"Background analysis error (non-fatal): {e}")
+        print(f"Error in background analysis: {e}")

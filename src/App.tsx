@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import CCMDashboard from "./components/CCMDashboard";
+import TeamRoomsDashboard from "./components/TeamRoomsDashboard";
 import EnhancedLanding from "./pages/EnhancedLanding";
 import NotFound from "./pages/NotFound";
 
@@ -18,6 +19,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<EnhancedLanding />} />
           <Route path="/dashboard" element={<CCMDashboard />} />
+          <Route path="/teams" element={<TeamRoomsDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </HashRouter>
